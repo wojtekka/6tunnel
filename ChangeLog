@@ -1,3 +1,10 @@
+0.10, 2002-11-23, wojtekka@irc.pl
+- major code cleanup,
+- select() before accept(), so 6tunnel won't hang on sys_socketcall.
+- fixed losing data under heavy load, when write() didn't send all
+  data. unsent data is stored in a buffer,
+- autoconf.
+
 0.09, 2001-10-18, wojtekka@irc.pl
 - included patch from OpenBSD port by Patroklos Argyroudis <argp@bsd.gr>.
 - fixing the fix - patch by awayzzz <awayzzz@digibel.org>.

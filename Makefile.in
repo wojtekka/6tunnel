@@ -1,0 +1,43 @@
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+bindir = @bindir@
+mandir = @mandir@
+
+CC = @CC@
+CFLAGS = @CFLAGS@ -Wall
+LDFLAGS = @LIBS@ @LDFLAGS@
+INSTALL = @INSTALL@
+STRIP = @STRIP@
+VERSION = @VERSION@
+
+default:	6tunnel
+
+6tunnel:	6tunnel.c
+
+.PHONY:	install
+
+install:
+	$(STRIP) 6tunnel
+	$(INSTALL) -d $(bindir)
+	$(INSTALL) 6tunnel $(bindir)
+
+	$(INSTALL) -d $(mandir)/man1
+	$(INSTALL) 6tunnel.1 $(mandir)/man1
+
+.PHONY:	clean
+
+clean:
+	rm -f 6tunnel *.o *~ core 6tunnel-*.tar.gz config.log config.status
+
+.PHONY:	distclean
+
+distclean:	clean
+	rm -f Makefile
+
+.PHONY:	tarball
+
+tarball:	distclean
+	cd ..; mv 6tunnel 6tunnel-$(VERSION); tar zcvf 6tunnel-$(VERSION)/6tunnel-$(VERSION).tar.gz --exclude 6tunnel-$(VERSION)/6tunnel-$(VERSION).tar.gz --exclude 6tunnel-$(VERSION)/older 6tunnel-$(VERSION); mv 6tunnel-$(VERSION) 6tunnel
+
+
+
