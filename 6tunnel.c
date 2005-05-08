@@ -1,5 +1,5 @@
 /*
- * 6tunnel v0.10-rc2
+ * 6tunnel v0.10
  * (C) Copyright 2000-2003 by Wojtek Kaniewski <wojtekka@bydg.pdi.net>
  *
  * Modified by:
