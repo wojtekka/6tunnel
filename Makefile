@@ -1,5 +1,5 @@
 CC = gcc -O2 -Wall
-VER = 0.01
+VER = 0.02
 RPM_ROOT = /home/wojtekka/rpm
 
 all:
@@ -10,7 +10,7 @@ install:
 	install 6tunnel /usr/bin
 
 tar:	clean
-	cd ..; tar zcvf 6tunnel/6tunnel-$(VER).tar.gz --exclude 6tunnel/6tunnel-$(VER).tar.gz 6tunnel
+	cd ..; tar zcvf 6tunnel/6tunnel-$(VER).tar.gz --exclude 6tunnel/6tunnel-$(VER).tar.gz --exclude 6tunnel/older 6tunnel
 
 rpm:	tar
 	cp 6tunnel.spec $(RPM_ROOT)/SPECS

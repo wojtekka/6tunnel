@@ -1,5 +1,5 @@
 Name: 6tunnel
-Version: 0.01
+Version: 0.02
 Release: 1
 Group: Networking/Utilities
 Copyright: GPL

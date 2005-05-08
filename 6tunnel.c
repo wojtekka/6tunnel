@@ -1,5 +1,5 @@
 /*
- * 6tunnel v0.01
+ * 6tunnel v0.02
  * (c) copyright 2000 by wojtek kaniewski <wojtekka@irc.pl>
  */
 
@@ -18,20 +18,23 @@ void usage(char *);
 
 int main(int argc, char **argv)
 {
-  int ret, local_port, remote_port, force = 0, lsock, csock, one = 0, quiet = 0;
+  int ret, local_port, remote_port, force = 0, lsock, csock, one = 0, quiet = 1, background = 1;
   struct sockaddr *sa;
   char optc, *remote_host, *local_host = NULL, remote[128];
   sa_family_t hint = AF_INET6;
   struct sockaddr_in laddr, caddr;
   int caddrlen = sizeof(caddr);
 
-  if ((optc = getopt(argc, argv, "1q4fs:")) != -1) {
+  if ((optc = getopt(argc, argv, "1dv4fs:")) != -1) {
     switch (optc) {
       case '1':
         one = 1;
 	break;
-      case 'q':
-        quiet = 1;
+      case 'd':
+        background = 0;
+	break;
+      case 'v':
+        quiet = 0;
 	break;
       case '4':
         hint = AF_INET;
@@ -79,6 +82,9 @@ int main(int argc, char **argv)
     perror("listen");
     return 1;
   }
+
+  if (background && fork())
+    exit(1);
   
   while ((csock = accept(lsock, &caddr, &caddrlen)) != -1) {
     if (!quiet)
@@ -174,11 +180,12 @@ struct sockaddr *resolve_host(char *name, sa_family_t hint)
 void usage(char *a0)
 {
   fprintf(stderr, "\
-usage: %s [-14qf] [-s localhost] localport remotehost remoteport\n\
+usage: %s [-14dqv] [-s localhost] localport remotehost remoteport\n\
 \n\
   -1  allow only one connection and quit\n\
   -4  preffer IPv4\n\
-  -q  be quiet\n\
+  -v  be verbose\n\
+  -d  don't fork\n\
   -f  force tunneling (even if remotehost isn't resolvable)\n\
   -s  connect using speciffied address\n\
 \n", a0);
