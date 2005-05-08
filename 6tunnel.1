@@ -1,5 +1,5 @@
 .\"
-.\"  6tunnel v0.04
+.\"  6tunnel v0.06
 .\"  (c) copyright 2000 by wojtek kaniewski <wojtekka@irc.pl>
 .\"
 .TH 6TUNNEL 1 "Jan 30, 2000"
@@ -9,6 +9,9 @@
 .B 6tunnel
 [
 .B \-146dhfv
+] [
+.BI \-u
+.IR username
 ] [
 .BI \-i
 .IR password
@@ -93,6 +96,9 @@ Force tunneling even if remote host is not resolvable at the execution time.
 .B \-h
 Print hex dump of every packet received or sent (hu-huh, Beavis, he said
 hex dump!)
+.TP
+.BI \-u "\ " username
+Change UID and GID after bind().
 .TP
 .BI \-i "\ " password
 Act as an IRC proxy and require user to authenticate.

@@ -1,5 +1,5 @@
 /*
- * 6tunnel v0.04
+ * 6tunnel v0.06
  * (c) copyright 2000 by wojtek kaniewski <wojtekka@irc.pl>
  */
 
@@ -16,6 +16,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <ctype.h>
+#include <pwd.h>
 
 #define debug(x...) { if (verbose) printf(x); }
 
@@ -23,6 +24,7 @@ struct sockaddr *resolve_host(char *, int);
 void make_tunnel(int);
 void usage(char *);
 void print_hexdump(char *, int);
+void clear_argv(char *argv);
 
 int remote_port, verbose, hint = AF_INET6, hexdump = 0, local_port;
 char *remote_host, *source_host = NULL, *ircpass = NULL, *ircsendpass = NULL, *bind_host = NULL;
@@ -31,13 +33,14 @@ int main(int argc, char **argv)
 {
   int ret, force = 0, lsock, csock, one = 0, jeden = 1;
   int verbose = 0, background = 1, listen6 = 0, sa_len;
-  char optc, remote[128];
+  char optc, remote[128], *username = NULL;
   struct sockaddr *sa;
   struct sockaddr_in laddr, caddr;
   struct sockaddr_in6 laddr6;
   int caddrlen = sizeof(caddr);
+  struct passwd *pw = NULL;
 
-  while ((optc = getopt(argc, argv, "1dv46fs:l:I:i:h")) != -1)
+  while ((optc = getopt(argc, argv, "1dv46fs:l:I:i:hu:")) != -1)
     switch (optc) {
       case '1': one = 1; break;
       case 'd': background = 0; break;
@@ -47,9 +50,10 @@ int main(int argc, char **argv)
       case 's': source_host = strdup(optarg); break;
       case 'l': bind_host = strdup(optarg); break;
       case 'r': force = 1; break;
-      case 'i': ircpass = strdup(optarg); break;
-      case 'I': ircsendpass = strdup(optarg); break;
+      case 'i': ircpass = strdup(optarg); clear_argv(argv[optind-1]); break;
+      case 'I': ircsendpass = strdup(optarg); clear_argv(argv[optind-1]); break;
       case 'h': hexdump = 1; break;
+      case 'u': username = strdup(optarg); break;
       default: return 1;
     }
 
@@ -61,7 +65,12 @@ int main(int argc, char **argv)
     usage(argv[0]);
     return 1;
   }
-  
+
+  if (username && !(pw = getpwnam(username))) {
+    fprintf(stderr, "%s: unknown user %s\n", argv[0], username);
+    exit(1);
+  }
+
   local_port = atoi(argv[optind++]);
   remote_host = argv[optind++];
   remote_port = (argc == optind) ? local_port : atoi(argv[optind]);
@@ -125,6 +134,11 @@ int main(int argc, char **argv)
     }
     if (ret)
       return 0;
+  }
+
+  if (username && ((setgid(pw->pw_gid) == -1) || (setuid(pw->pw_uid) == -1))) {
+    perror("setuid/setgid");
+    exit(1);
   }
 
   setsid();
@@ -326,4 +340,14 @@ usage: %s [-146dqvh] [-s sourcehost] [-l localhost] [-i pass] [-I pass]\n\
   -h  print hex dump of packets\n\
 \n", a0);
 
+}
+
+void clear_argv(char *argv)
+{
+  int x;
+  
+  for (x = 0; x < strlen(argv); x++)
+    argv[x] = 'x';
+
+  return;
 }

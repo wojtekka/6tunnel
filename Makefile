@@ -1,19 +1,15 @@
 CC = gcc -O2 -Wall
-VER = 0.04
+VER = 0.06
 RPM_ROOT = /home/wojtekka/rpm
 
 default:
 	@echo -e -- \\033[1m6tunnel\\033[0m make --
-	@case $$(uname -s) in \
-	  Linux) make Linux;; \
-	  *BSD) make BSD;; \
-	  *) echo "$$(uname -s) is not supported";; \
-	esac 
+	@if [ -d /usr/local/v6/lib ]; then make KAME; else make generic; fi
 
-Linux:
+generic:
 	$(CC) 6tunnel.c -o 6tunnel
 
-BSD:
+KAME:
 	$(CC) 6tunnel.c -o 6tunnel -L/usr/local/v6/lib -linet6
 
 install:	default

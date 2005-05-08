@@ -1,0 +1,23 @@
+0.06, 2000-09-11, wojtekka@irc.pl
+- added -u, quick patch.
+
+0.05, 2000-06-25, wojtekka@irc.pl
+- added shadowing of args which store -i or -I passwords,
+- added changelog (huh, that was the most difficult part ;)),
+- fixed Makefile to compile propertly on BSD with native IPv6 support
+  (FreeBSD 4.0 for example).
+
+0.04, 2000-02-24, wojtekka@irc.pl
+- added irc proxy,
+- added hexdump of forwaded packets.
+
+0.03, 2000-02-01, wojtekka@irc.pl
+- added listening on IPv4 address,
+- added man page,
+- almost complete rewrite.
+
+0.02, 2000-01-13, wojtekka@irc.pl
+- added detaching, verbose mode.
+
+0.01, 2000-01-12, wojtekka@irc.pl
+- initial release.
