@@ -1,8 +1,8 @@
 .\"
 .\"  6tunnel v0.10
-.\"  (C) Copyright 2000-2002 by Wojtek Kaniewski <wojtekka@bydg.pdi.net>
+.\"  (C) Copyright 2000-2003 by Wojtek Kaniewski <wojtekka@bydg.pdi.net>
 .\"
-.TH 6TUNNEL 1 "Nov 23, 2002"
+.TH 6TUNNEL 1 "Apr 14, 2003"
 .SH NAME
 6tunnel \- tunnelling for application that don't speak IPv6
 .SH SYNOPSIS
@@ -27,6 +27,10 @@
 ] [
 .BI \-m
 .IR map\_file
+]
+] [
+.BI \-p
+.IR pid\_file
 ]
 .IR local\_port
 .IR remote\_host
@@ -117,9 +121,6 @@ Listen on specified address (IPv4, or IPv6 if
 .B \-6
 used).
 .TP
-.BI \-s "\ " source_host
-Connect to the remote host using specified source address.
-.TP
 .BI \-L "\ " limit
 Limit simultaneous connections.
 .TP
@@ -136,6 +137,12 @@ Example file format:
 With this option specified connections will be allowed only from
 listed hosts. To allow any host to connect you have to add mapping 
 for 0.0.0.0 address.
+.TP
+.BI \-p "\ " pid_file
+Write down pid to specified file.
+.TP
+.BI \-s "\ " source_host
+Connect to the remote host using specified source address.
 .TP
 .B \-v
 Be verbose and don't detach.

@@ -1,6 +1,6 @@
 /*
- * 6tunnel v0.10-rc1
- * (C) Copyright 2000-2002 by Wojtek Kaniewski <wojtekka@bydg.pdi.net>
+ * 6tunnel v0.10-rc2
+ * (C) Copyright 2000-2003 by Wojtek Kaniewski <wojtekka@bydg.pdi.net>
  *
  * Modified by:
  *   Tomek Lipski <lemur@irc.pl>, thx to KeFiR@IRCnet
@@ -25,11 +25,10 @@
 #include <pwd.h>
 #include <time.h>
 
-#define debug(x...) \
-{ \
+#define debug(x...) do { \
 	if (verbose) \
 		printf(x); \
-}
+} while(0)
 
 struct ip_map {
 	char *ipv4_addr;
@@ -42,6 +41,7 @@ int maps_count = 0, verbose = 0, conn_count = 0;
 int remote_port, verbose, hint = AF_INET6, hexdump = 0;
 char *remote_host, *source_host = NULL, *ircpass = NULL;
 char *ircsendpass = NULL, remote[128];
+char *pid_file = NULL;
 
 char *xmalloc(int size)
 {
@@ -328,23 +328,24 @@ void usage(const char *arg0)
 {
 	fprintf(stderr,
 			
-"usage: %s [-146dqvh] [-s sourcehost] [-l localhost] [-i pass]\n"
+"usage: %s [-146dvh] [-s sourcehost] [-l localhost] [-i pass]\n"
 "           [-I pass] [-m mapfile] [-L limit] [-A filename]\n"
-"           localport remotehost [remoteport]\n"
+"           [-p pidfile] localport remotehost [remoteport]\n"
 "\n"	   
 "  -1  allow only one connection and quit\n"
 "  -4  preffer IPv4 endpoints\n"
 "  -6  bind to IPv6 address\n"
-"  -v  be verbose\n"
 "  -d  don't detach\n"
 "  -f  force tunneling (even if remotehost isn't resolvable)\n"
-"  -s  connect using specified address\n"
-"  -l  bind to specified address\n"
+"  -h  print hex dump of packets\n"
 "  -i  act like irc proxy and ask for password\n"
 "  -I  send specified password to the irc server\n"
-"  -h  print hex dump of packets\n"
-"  -m  map specified IPv4 addresses to different IPv6 addresses (see manpage)\n"
+"  -l  bind to specified address\n"
 "  -L  limit simultanous connections\n"
+"  -m  map specified IPv4 addresses to different IPv6 addresses (see manpage)\n"
+"  -p  write down pid to specified file\n"
+"  -s  connect using specified address\n"
+"  -v  be verbose\n"
 "\n", arg0);
 }
 
@@ -426,6 +427,12 @@ void child_hand()
 	signal(SIGCHLD, child_hand);
 }
 
+void term_hand()
+{
+	if (pid_file)
+		unlink(pid_file);
+}
+
 int main(int argc, char **argv)
 {
 	int force = 0, lsock, csock, one = 0, jeden = 1, local_port;
@@ -437,7 +444,7 @@ int main(int argc, char **argv)
 	int caddrlen = sizeof(caddr);
 	struct passwd *pw = NULL;
 	
-	while ((optc = getopt(argc, argv, "1dv46fs:l:I:i:hu:m:L:A:")) != -1) {
+	while ((optc = getopt(argc, argv, "1dv46fs:l:I:i:hu:m:L:A:p:")) != -1) {
 		switch (optc) {
 			case '1':
 				one = 1;
@@ -482,6 +489,9 @@ int main(int argc, char **argv)
 				break;
 			case 'L':
 				conn_limit = atoi(optarg);
+				break;
+			case 'p':
+				pid_file = xstrdup(optarg);
 				break;
 			default:
 				return 1;
@@ -599,6 +609,17 @@ int main(int argc, char **argv)
 			exit(0);
 	}
 
+	if (pid_file) {
+		FILE *f = fopen(pid_file, "w");
+
+		if (!f)
+			debug("warning: cannot write to pidfile (%s)\n", strerror(errno));
+		else {
+			fprintf(f, "%d", getpid());
+			fclose(f);
+		}
+	}
+
 	if (username && ((setgid(pw->pw_gid) == -1) || (setuid(pw->pw_uid) == -1))) {
 		perror("setuid/setgid");
 		exit(1);
@@ -606,6 +627,8 @@ int main(int argc, char **argv)
 
 	setsid();
 	signal(SIGCHLD, child_hand);
+	signal(SIGTERM, term_hand);
+	signal(SIGINT, term_hand);
     
 	for (;;) {  
 		int ret;
