@@ -1,8 +1,8 @@
 .\"
-.\"  6tunnel v0.10
-.\"  (C) Copyright 2000-2003 by Wojtek Kaniewski <wojtekka@bydg.pdi.net>
+.\"  6tunnel v0.11
+.\"  (C) Copyright 2000-2004 by Wojtek Kaniewski <wojtekka@irc.pl>
 .\"
-.TH 6TUNNEL 1 "Apr 14, 2003"
+.TH 6TUNNEL 1 "Apr 9, 2004"
 .SH NAME
 6tunnel \- tunnelling for application that don't speak IPv6
 .SH SYNOPSIS
@@ -146,6 +146,8 @@ Connect to the remote host using specified source address.
 .TP
 .B \-v
 Be verbose and don't detach.
+.SH SIGNALS
+Sending a SIGHUP signal forces a reload of the map file.
 .SH THANKS
 #ipv6 crew, Lam.
 .SH BUGS
@@ -155,6 +157,7 @@ EPIC, BitchX, mIRC and many more will work). No logging except debug output.
 .SH AUTHORS
 Wojtek Kaniewski (wojtekka@bydg.pdi.net),
 Tomek Lipski (lemur@irc.pl),
-Dariusz Jackowski (ascent@linux.pl)
+Dariusz Jackowski (ascent@linux.pl),
+Ramunas Lukosevicus (lukoramu@parok.lt)
 .SH "SEE ALSO"
 .BR ssh (1)

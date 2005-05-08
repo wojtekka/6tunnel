@@ -1,11 +1,12 @@
 /*
- * 6tunnel v0.10
- * (C) Copyright 2000-2003 by Wojtek Kaniewski <wojtekka@bydg.pdi.net>
+ * 6tunnel v0.11
+ * (C) Copyright 2000-2004 by Wojtek Kaniewski <wojtekka@irc.pl>
  *
  * Modified by:
  *   Tomek Lipski <lemur@irc.pl>, thx to KeFiR@IRCnet
  *   Dariusz Jackowski <ascent@linux.pl>
  *   awayzzz <awayzzz@digibel.org>
+ *   Ramunas Lukosevicius <lukoramu@parok.lt>
  */
 
 #include <stdio.h>
@@ -39,9 +40,10 @@ struct ip_map {
 struct ip_map *maps = NULL;
 int maps_count = 0, verbose = 0, conn_count = 0;
 int remote_port, verbose, hint = AF_INET6, hexdump = 0;
-char *remote_host, *source_host = NULL, *ircpass = NULL;
+char *remote_host, *ircpass = NULL, *map_filename = NULL;
 char *ircsendpass = NULL, remote[128];
 char *pid_file = NULL;
+const char *source_host;
 
 char *xmalloc(int size)
 {
@@ -359,12 +361,36 @@ void clear_argv(char *argv)
 	return;
 }
 
+
+void free_map()
+{
+    struct ip_map *a, *n;
+    a = maps;
+
+    debug("destroying ipv4->ipv6 map data structure...\n");
+
+    while (a != NULL)
+    {
+	free(a->ipv4_addr);
+	free(a->ipv6_addr);
+	n = a->next;
+	free(a);
+	a = n;
+    }
+
+    maps = NULL;
+    maps_count = 0;
+}
+
 void read_map(const char *filename)
 {
 	FILE *map_file;
 	char ipv4[128], ipv6[128];
 	struct ip_map *a, *n;
-	
+
+	if (!filename)
+		return;
+
 	debug("reading map file %s...\n", filename);
 
 	if (!(map_file = fopen(filename, "r"))) {
@@ -417,6 +443,14 @@ const char *find_ip6(const char *ip4)
 	return source_host;
 }
 
+void sig_reload_map()
+{
+	free_map();
+        read_map(map_filename);
+
+	signal(SIGHUP, sig_reload_map);
+}
+
 void child_hand()
 {
 	while (wait4(0, NULL, WNOHANG, NULL) > 0) {
@@ -437,7 +471,7 @@ int main(int argc, char **argv)
 {
 	int force = 0, lsock, csock, one = 0, jeden = 1, local_port;
 	int detach = 1, listen6 = 0, sa_len, conn_limit = 0;
-	char optc, *username = NULL, *map_filename = NULL, *bind_host = NULL;
+	char optc, *username = NULL, *bind_host = NULL;
 	struct sockaddr *sa;
 	struct sockaddr_in laddr, caddr;
 	struct sockaddr_in6 laddr6;
@@ -593,7 +627,7 @@ int main(int argc, char **argv)
 	if (detach) {
 		int i, ret;
 
-		signal(SIGHUP, SIG_IGN);
+		signal(SIGHUP, sig_reload_map);
 		
 		for (i = 0; i < 3; i++)
 			close(i);
@@ -629,6 +663,7 @@ int main(int argc, char **argv)
 	signal(SIGCHLD, child_hand);
 	signal(SIGTERM, term_hand);
 	signal(SIGINT, term_hand);
+	signal(SIGHUP, sig_reload_map);
     
 	for (;;) {  
 		int ret;
@@ -679,9 +714,10 @@ int main(int argc, char **argv)
 		}
     
 		if (!ret) {
+			signal(SIGHUP, SIG_IGN);
 			close(lsock);
 			if (maps_count) {
-				find_ip6(remote);
+				source_host = find_ip6(remote);
 				if (!source_host) {
 					debug("<%d> connection attempt from unauthorized IP address: %s\n", csock, remote);
 					shutdown(csock, 2);
