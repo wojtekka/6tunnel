@@ -1,8 +1,8 @@
 .\"
-.\"  6tunnel v0.06
-.\"  (c) copyright 2000 by wojtek kaniewski <wojtekka@irc.pl>
+.\"  6tunnel v0.09
+.\"  (c) copyright 2000, 2001 by wojtek kaniewski <wojtekka@irc.pl>
 .\"
-.TH 6TUNNEL 1 "Jan 30, 2000"
+.TH 6TUNNEL 1 "Oct 13, 2001"
 .SH NAME
 6tunnel \- tunnelling for application that don't speak IPv6
 .SH SYNOPSIS
@@ -22,8 +22,14 @@
 .BI \-l
 .IR local\_host
 ] [
-.BI \-s
-.IR source\_host
+.BI \-L
+.IR limit
+] [
+.BI \-m
+.IR map\_file
+]
+.BI \-A
+.IR filename
 ]
 .IR local\_port
 .IR remote\_host
@@ -117,16 +123,38 @@ used).
 .BI \-s "\ " source_host
 Connect to the remote host using specified source address.
 .TP
+.BI \-L "\ " limit
+Limit simultaneous connections.
+.TP
+.BI \-m "\ " map_file
+Bind to different IPv6 addresses, depending on client's IPv4 address.
+Example file format:
+.IP
+.nf
+.ta +3i
+127.0.0.1 3ffe:8010:7::3
+192.168.16.2 3ffe:8010:7::5
+.fi
+.IP
+With this option specified connections will be allowed only from
+listed hosts. To allow any host to connect you have to add mapping 
+for 0.0.0.0 address.
+.TP
+.BI \-A "\ " filename
+Create a log file which looks like apache's access_log. It's useful, when
+you don't want to run your website with IPv6 and don't want to mess with
+tons of patches for apache.
+.TP
 .B \-v
 Be verbose and don't detach.
 .SH THANKS
 #ipv6 crew.
 .SH BUGS
-Terrible man page. Passwords are shown to everyone who's able to see your
-host's process list. Hex dump doesn't include IRC proxy authentication.
+Terrible man page. Hex dump doesn't include IRC proxy authentication.
 IRC proxy requires your client to send password first (don't worry ircii,
-EPIC, BitchX, mIRC and many more will work). No logging.
-.SH AUTHOR
-Wojtek Kaniewski (wojtekka@irc.pl)
+EPIC, BitchX, mIRC and many more will work). No logging except debug output.
+.SH AUTHORS
+Wojtek Kaniewski (wojtekka@irc.pl), Tomek Lipski (lemur@irc.pl),
+Dariusz Jackowski (ascent@linux.pl)
 .SH "SEE ALSO"
 .BR ssh (1)

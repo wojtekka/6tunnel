@@ -1,46 +1,67 @@
 /*
- * 6tunnel v0.06
- * (c) copyright 2000 by wojtek kaniewski <wojtekka@irc.pl>
+ * 6tunnel v0.09
+ * (c) copyright 2000, 2001 by wojtek kaniewski <wojtekka@irc.pl>
+ *
+ * modified by tomek lipski <lemur@irc.pl>
+ * thx to KeFiR@IRCnet
+ *
+ * modified by Dariusz Jackowski <ascent@linux.pl>
+ *
+ * modified by awayzzz <awayzzz@digibel.org>
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <netdb.h>
-#include <arpa/inet.h>
 #include <string.h>
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <errno.h>
 #include <ctype.h>
 #include <pwd.h>
+#include <time.h>
 
 #define debug(x...) { if (verbose) printf(x); }
+
+struct ip_map {
+	char *ipv4_addr;
+	char *ipv6_addr;
+	struct ip_map *next;
+};
 
 struct sockaddr *resolve_host(char *, int);
 void make_tunnel(int);
 void usage(char *);
 void print_hexdump(char *, int);
 void clear_argv(char *argv);
+void read_map(int verb);
+void find_ip6(char *ip4);
+void child_hand();
 
-int remote_port, verbose, hint = AF_INET6, hexdump = 0, local_port;
+struct ip_map *maps;
+int maps_count, verbose = 0, conn_count = 0;
+
+int remote_port, verbose, hint = AF_INET6, hexdump = 0, local_port, apache_log_fd = -1;
 char *remote_host, *source_host = NULL, *ircpass = NULL, *ircsendpass = NULL, *bind_host = NULL;
+char *map_filename = NULL, *apache_log = NULL, remote[128];
 
 int main(int argc, char **argv)
 {
   int ret, force = 0, lsock, csock, one = 0, jeden = 1;
-  int verbose = 0, background = 1, listen6 = 0, sa_len;
-  char optc, remote[128], *username = NULL;
+  int background = 1, listen6 = 0, sa_len, conn_limit = 0;
+  char optc, *username = NULL;
   struct sockaddr *sa;
   struct sockaddr_in laddr, caddr;
   struct sockaddr_in6 laddr6;
   int caddrlen = sizeof(caddr);
   struct passwd *pw = NULL;
-
-  while ((optc = getopt(argc, argv, "1dv46fs:l:I:i:hu:")) != -1)
+  while ((optc = getopt(argc, argv, "1dv46fs:l:I:i:hu:m:L:A:")) != -1)
     switch (optc) {
       case '1': one = 1; break;
       case 'd': background = 0; break;
@@ -54,6 +75,9 @@ int main(int argc, char **argv)
       case 'I': ircsendpass = strdup(optarg); clear_argv(argv[optind-1]); break;
       case 'h': hexdump = 1; break;
       case 'u': username = strdup(optarg); break;
+      case 'm': map_filename = strdup(optarg); break;
+      case 'L': conn_limit = atoi(optarg); break;
+      case 'A': apache_log = strdup(optarg); break;
       default: return 1;
     }
 
@@ -70,26 +94,35 @@ int main(int argc, char **argv)
     fprintf(stderr, "%s: unknown user %s\n", argv[0], username);
     exit(1);
   }
-
+  
+  if (map_filename)
+    read_map(verbose);
+  
   local_port = atoi(argv[optind++]);
   remote_host = argv[optind++];
   remote_port = (argc == optind) ? local_port : atoi(argv[optind]);
 
-  debug("-- \033[1m6tunnel\033[0m --\n");  
-  debug("local: %s,%d; ", bind_host ? bind_host : "default", local_port);
-  debug("remote: %s,%d; ", remote_host, remote_port);
-  debug("source: %s\n", source_host ? source_host : "default");
-
+  debug("resolving %s\n", remote_host);
   if (!(sa = resolve_host(remote_host, hint)) && !force) {
     fprintf(stderr, "%s: unable to resolve host %s\n", argv[0], remote_host);
     return 1;
   }
+  free(sa);
+  sa = NULL;
 
+  if (bind_host)
+    debug("resolving %s\n", bind_host);
   if (bind_host && !(sa = resolve_host(bind_host, (listen6) ? AF_INET6 : AF_INET))) {
     fprintf(stderr, "%s: unable to resolve host %s\n", argv[0], remote_host);
     return 1;
   }
  
+  debug("-- \033[1m6tunnel\033[0m --\n");  
+  debug("local: %s,%d; ", bind_host ? bind_host : "default", local_port);
+  debug("remote: %s,%d; ", remote_host, remote_port);
+  debug((map_filename) ? "source: mapped\n" : "source: %s\n", source_host ? source_host : "default");
+  free(sa);
+
   if (!listen6) {
     lsock = socket(PF_INET, SOCK_STREAM, 0);
     memset(&laddr, 0, (sa_len = sizeof(laddr)));
@@ -118,7 +151,7 @@ int main(int argc, char **argv)
     return 1;
   }    
   
-  if (listen(lsock, 5)) {
+  if (listen(lsock, 100)) {
     perror("listen");
     return 1;
   }
@@ -142,39 +175,69 @@ int main(int argc, char **argv)
   }
 
   setsid();
-  signal(SIGCHLD, SIG_IGN);
+  signal(SIGCHLD, child_hand);
     
   for (;;) {  
     if ((csock = accept(lsock, (struct sockaddr*) &caddr, &caddrlen)) == -1) {
       if (errno == EINTR)
         continue;
-      else
+      else {
+        close(lsock);
         break;
+      }
     }
-    
-    debug("<%d> connection from %s, %d\n", csock, inet_ntop(caddr.sin_family, (caddr.sin_family == AF_INET) ? &caddr.sin_addr : (void*) &(((struct sockaddr_in6*)&caddr)->sin6_addr), remote, 128), ntohs(caddr.sin_port));
 
+    inet_ntop(caddr.sin_family, (caddr.sin_family == AF_INET) ?
+      &caddr.sin_addr :
+      (void*) &(((struct sockaddr_in6*)&caddr)->sin6_addr),
+      remote, 128);
+    
+    debug("<%d> connection from %s,%d", csock, remote, ntohs(caddr.sin_port));
+    if (conn_limit && (conn_count >= conn_limit)) {
+      debug(" -- rejected due to limit.\n");
+      shutdown(csock, 2);
+      close(csock);
+      continue;
+    }
+    if (conn_limit) {
+      conn_count++;
+      debug(" (no. %d)", conn_count);
+    }
+    fflush(stdout);
+    
     if ((ret = fork()) == -1) {
+      debug(" -- fork() failed.\n");
       shutdown(csock, 2);
       close(csock);
       continue;
     }
     
     if (!ret) {
-      shutdown(lsock, 2);
       close(lsock);
+      if (maps_count) {
+        find_ip6(remote);
+        if (!source_host) {
+          debug("<%d> connection attempt from unauthorized IP address: %s\n", csock, remote);
+          shutdown(csock, 2);
+          close(csock);
+          exit(0);
+        }
+        debug(" mapped to host %s", source_host);
+      }
+      debug("\n");
       make_tunnel(csock);
       debug("<%d> connection closed\n", csock);
-//    } else {
-//      shutdown(csock, 2);
-//      close(csock);
-    }
+      exit(0);
+    } 
+
+    close(csock);
     
     if (one) {
       shutdown(lsock, 2);
       close(lsock);
       return 0;
     }
+
   }
   
   return 1;
@@ -187,11 +250,45 @@ void make_tunnel(int rsock)
   fd_set fd_read, fd_exc;
   char buf[4096], *foo;
   
+#if 0
+  if (apache_log) {
+    time_t t = time(NULL);
+    struct tm *tm = localtime(&t);
+    char tmp[100];
+    int len, j;
+
+    strftime(tmp, 100, "%d/%b/%Y:%H:%M:%S %z", tm);
+    snprintf(buf, 4095, "%s - - [%s] \"", remote, tmp);
+  
+    for (i = strlen(buf), j = i; i < 4094; i++) {
+      if ((ret = read(rsock, &buf[i], 1)) < 1) {
+        shutdown(rsock, 2);
+        close(rsock);
+        return;
+      }
+      if (buf[i] == '\n') break;
+    }
+    buf[i+1] = 0;
+    len = strlen(buf) - 1;
+    if (i && buf[i-1] == '\r')
+      len--;
+    
+    if (apache_log_fd == -1) {
+      if ((apache_log_fd = open(apache_log, O_APPEND | O_CREAT | O_WRONLY, 0600)) != -1) {
+	write(apache_log_fd, buf, len - j);
+	write(apache_log_fd, "\" 200 0 - -\n", 12);
+      }
+    }
+
+    write(rsock, buf + j, strlen(buf) - j);
+  }
+#endif
+
 #define auth_failed { shutdown(rsock, 2); close(rsock); return; }
 
   if (ircpass) {
     for (i = 0; i < 4095; i++) {
-      if (read(rsock, &buf[i], 1) < 1) auth_failed;
+      if ((ret = read(rsock, &buf[i], 1)) < 1) auth_failed;
       if (buf[i] == '\n') break;
     }
     buf[i] = 0;
@@ -206,7 +303,7 @@ void make_tunnel(int rsock)
 
     if (strcmp(buf + 5, ircpass)) {
       debug("<%d> irc proxy auth failed - password incorrect\n", rsock);
-      foo = ":6tunnel 464 * :Password incorrect\r\nERROR :Closing ling: Password incorrect\r\n";
+      foo = ":6tunnel 464 * :Password incorrect\r\nERROR :Closing link: Password incorrect\r\n";
       write(rsock, foo, strlen(foo));
       auth_failed;
     }
@@ -220,31 +317,40 @@ void make_tunnel(int rsock)
     return;
   }
   sock = socket(sa->sa_family, SOCK_STREAM, 0);
-  
+  free(sa);
   if (source_host) {
     if (!(sa = resolve_host(source_host, hint))) {
       debug("<%d> unable to resolve source host (%s)\n", rsock, source_host);
       return;
     }
     if (bind(sock, sa, (hint == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6))) {
+      free(sa);
       debug("<%d> unable to bind to source host (%s)\n", rsock, source_host);
       return;
     }
+    free(sa);
   }
 
   sa = resolve_host(remote_host, hint);
   ((struct sockaddr_in*) sa)->sin_port = htons(remote_port);
   if (connect(sock, sa, (sa->sa_family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6))) {
-    debug("<%d> connection refused (%s, %d)\n", rsock, remote_host, remote_port);
+    free(sa);
+    debug("<%d> connection refused (%s,%d)\n", rsock, remote_host, remote_port);
     return;
   }
+  free(sa);
 
-  debug("<%d> connected to %s, %d\n", rsock, remote_host, remote_port);
+  debug("<%d> connected to %s,%d\n", rsock, remote_host, remote_port);
 
   if (ircsendpass) {
     snprintf(buf, 4096, "PASS %s\r\n", ircsendpass);
     write(sock, buf, strlen(buf));
   }
+
+#if 0
+  if (apache_log)
+    write(sock, buf + j, strlen(buf) - j);
+#endif
 
   for (;;) {
     FD_ZERO(&fd_read);
@@ -324,21 +430,26 @@ void print_hexdump(char *buf, int len)
 void usage(char *a0)
 {
   fprintf(stderr, "\
-usage: %s [-146dqvh] [-s sourcehost] [-l localhost] [-i pass] [-I pass]\n\
-           localport remotehost [remoteport]\n\
-\n\
-  -1  allow only one connection and quit\n\
-  -4  preffer IPv4 endpoints\n\
-  -6  bind to IPv6 address\n\
-  -v  be verbose\n\
-  -d  don't detach\n\
-  -f  force tunneling (even if remotehost isn't resolvable)\n\
-  -s  connect using specified address\n\
-  -l  bind to specified address\n\
-  -i  act like irc proxy and ask for password\n\
-  -I  send specified password to the irc server\n\
-  -h  print hex dump of packets\n\
-\n", a0);
+usage: %s [-146dqvh] [-s sourcehost] [-l localhost] [-i pass]
+           [-I pass] [-m mapfile] [-L limit] [-A filename]
+	   localport remotehost [remoteport]
+	   
+  -1  allow only one connection and quit
+  -4  preffer IPv4 endpoints
+  -6  bind to IPv6 address
+  -v  be verbose
+  -d  don't detach
+  -f  force tunneling (even if remotehost isn't resolvable)
+  -s  connect using specified address
+  -l  bind to specified address
+  -i  act like irc proxy and ask for password
+  -I  send specified password to the irc server
+  -h  print hex dump of packets
+  -m  map specified IPv4 addresses to different IPv6 addresses (see manpage)
+  -L  limit simultanous connections
+  -A  create apache-like log file
+
+", a0);
 
 }
 
@@ -350,4 +461,87 @@ void clear_argv(char *argv)
     argv[x] = 'x';
 
   return;
+}
+
+void read_map(verb)
+{
+	FILE *map_file;
+	char ipv4[128], ipv6[128];
+	struct ip_map *a, *n;
+	
+	debug("reading map file %s...\n", map_filename);
+	if (!(map_file = fopen(map_filename, "r"))) {
+		perror("Unable to read map file");
+		exit(-1);
+	}
+	
+	maps_count = 0;
+	while (!feof(map_file) && fscanf(map_file, "%127s %127s", ipv4, ipv6)) {
+		debug("map %s->%s\n", ipv4, ipv6);
+		
+		n = malloc(sizeof(struct ip_map));
+		if (n == NULL) {
+			printf("Unable to allocate memory.\n");
+			exit(-1);
+		}
+		
+		n->ipv4_addr = strdup(ipv4);
+		n->ipv6_addr = strdup(ipv6);
+		n->next = NULL;
+		
+		a = maps;
+		if (a == NULL) {
+			maps = n;
+			continue;
+		}
+		
+		while (1) {
+			if (a->next == NULL)
+				break;
+			
+			a = a->next;
+		}
+		
+		a->next = n;
+		maps_count++;
+	}
+	
+	debug("read %i items\n", maps_count);
+	fclose(map_file);
+}
+
+void find_ip6(char *ip4)
+{
+	struct ip_map *tmp;
+	
+	source_host = NULL;
+	tmp = maps;
+	
+	while (tmp != NULL) {
+		if (!strcmp(ip4, tmp->ipv4_addr)) {
+			source_host = tmp->ipv6_addr;
+			return;
+		}
+		tmp = tmp->next;
+	}
+	
+	// and again - try to find the default if explicit search failed
+	tmp = maps;
+	
+	while (tmp != NULL) {
+		if (!strcmp("0.0.0.0", tmp->ipv4_addr)) {
+			source_host = tmp->ipv6_addr;
+			return;
+		}
+		tmp = tmp->next;
+	}
+}
+
+void child_hand()
+{
+  while (wait4(0, NULL, WNOHANG, NULL) > 0) {
+    debug("child dying\n");
+    conn_count--;
+  }
+  signal(SIGCHLD, child_hand);
 }

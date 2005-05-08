@@ -1,21 +1,31 @@
 CC = gcc -O2 -Wall
-VER = 0.06
+VER = 0.09
 RPM_ROOT = /home/wojtekka/rpm
 
 default:
 	@echo -e -- \\033[1m6tunnel\\033[0m make --
 	@if [ -d /usr/local/v6/lib ]; then make KAME; else make generic; fi
-
 generic:
 	$(CC) 6tunnel.c -o 6tunnel
-
 KAME:
 	$(CC) 6tunnel.c -o 6tunnel -L/usr/local/v6/lib -linet6
 
-install:	default
-	strip 6tunnel
-	install 6tunnel /usr/bin
+install:
+	@case $$(uname -s) in \
+	  *BSD) make install-bsd;; \
+	  *) make install-generic;; \
+	esac
 
+install-generic:	default
+	strip 6tunnel
+	install 6tunnel /usr/local/bin
+	install	6tunnel.1 /usr/local/man/man1
+
+install-bsd:	default
+	strip 6tunnel
+	install 6tunnel /usr/local/bin
+	install	6tunnel.1 /usr/local/share/man/man1
+	
 targz:	clean
 	cd ..; tar zcvf 6tunnel/6tunnel-$(VER).tar.gz --exclude 6tunnel/6tunnel-$(VER).tar.gz --exclude 6tunnel/older 6tunnel
 
