@@ -1,5 +1,5 @@
 .\"
-.\"  6tunnel v0.03
+.\"  6tunnel v0.04
 .\"  (c) copyright 2000 by wojtek kaniewski <wojtekka@irc.pl>
 .\"
 .TH 6TUNNEL 1 "Jan 30, 2000"
@@ -8,7 +8,13 @@
 .SH SYNOPSIS
 .B 6tunnel
 [
-.B \-146dfv
+.B \-146dhfv
+] [
+.BI \-i
+.IR password
+] [
+.BI \-I
+.IR password
 ] [
 .BI \-l
 .IR local\_host
@@ -30,23 +36,38 @@ example
 .IP
 .BI 6tunnel "\ " \-1 "\ " 6668 "\ " irc6.net "\ " 6667
 .LP
-will do, to connect to IPv6 irc server with
+will be enough to connect to IPv6 irc server with
 .IP
 .BI irc "\ " foobar "\ " localhost:6668
 .LP
-This is a
-.B simple
-tunnel so there is no authorization and no logging. Unless you declare
-.B \-1
-option, everyone will be able to use your tunnel.
+If you don't wish to run
+.B 6tunnel
+every time you want to show your :c001: or :dead: IPv6 address on IRC,
+you can use
+.B \-i
+parameter, which makes
+.B 6tunnel
+ask your client for specified password. Just run
+.IP
+.BI 6tunnel "\ " \-i "\ " dupa.8 "\ " 31337 "\ " irc6.net "\ " 6667
+.LP
+and then type
+.IP
+.BI irc "\ " foobar "\ " localhost:31337:dupa.8
+.LP
+If your IRC server requires you to send password, specify it with
+.B \-I
+parameter -- after successful proxy authentication
+.B 6tunnel
+will send it to the server.
 
 .B 6tunnel
 can also be used as a tunnel for all other combinations of IPv4 and IPv6
 endpoints. If remote host doesn't have any IPv6 addresses,
 .B 6tunnel
-IPv4 one will be used. In other cases, use
+will use the IPv4 one. In other cases, use
 .B \-4
-parameter which makes IPv4 address the preffered one. For IPv6 to * tunnels
+parameter which makes IPv4 address the preffered one. For IPv6-to-any tunnels
 use
 .B \-6
 which makes
@@ -55,30 +76,50 @@ bind to IPv6 address.
 .SH OPTIONS
 .TP
 .B \-1
-Exit after first client connection. 
+Exit after first connection.
 .TP
 .B \-4
-Preffer IPv4 endpoint.
+Preffer IPv4 endpoint if the machine has both address types.
 .TP
 .B \-6
-Listen on IPv6 address.
+Listen on IPv6 address (IPv4 is default).
 .TP
 .B \-d
-Don't fork(2).
+Don't detach.
 .TP
 .B \-f
-Force tunneling even if remote host is not resolvable at this time.
+Force tunneling even if remote host is not resolvable at the execution time.
+.TP
+.B \-h
+Print hex dump of every packet received or sent (hu-huh, Beavis, he said
+hex dump!)
+.TP
+.BI \-i "\ " password
+Act as an IRC proxy and require user to authenticate.
+.TP
+.BI \-I "\ " password
+If you are using
+.B 6tunnel
+as an IRC proxy and the IRC server requires you to send password, place
+it right here.
 .TP
 .BI \-l "\ " local_host
-Listen on this address.
+Listen on specified address (IPv4, or IPv6 if
+.B \-6
+used).
 .TP
 .BI \-s "\ " source_host
-Connect using this source address.
+Connect to the remote host using specified source address.
 .TP
 .B \-v
-Be verbose. Don't fork(2).
+Be verbose and don't detach.
+.SH THANKS
+#ipv6 crew.
 .SH BUGS
-Terrible man page ;)
+Terrible man page. Passwords are shown to everyone who's able to see your
+host's process list. Hex dump doesn't include IRC proxy authentication.
+IRC proxy requires your client to send password first (don't worry ircii,
+EPIC, BitchX, mIRC and many more will work). No logging.
 .SH AUTHOR
 Wojtek Kaniewski (wojtekka@irc.pl)
 .SH "SEE ALSO"
