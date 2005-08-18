@@ -1,12 +1,23 @@
 /*
- * 6tunnel v0.11
- * (C) Copyright 2000-2004 by Wojtek Kaniewski <wojtekka@irc.pl>
- *
- * Modified by:
- *   Tomek Lipski <lemur@irc.pl>, thx to KeFiR@IRCnet
- *   Dariusz Jackowski <ascent@linux.pl>
- *   awayzzz <awayzzz@digibel.org>
- *   Ramunas Lukosevicius <lukoramu@parok.lt>
+ *  6tunnel v0.11
+ *  (C) Copyright 2000-2005 by Wojtek Kaniewski <wojtekka@toxygen.net>
+ *  
+ *  Contributions by:
+ *  - Dariusz Jackowski <ascent@linux.pl>
+ *  - Ramunas Lukosevicius <lukoramu@parok.lt>
+ *  
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License Version 2 as
+ *  published by the Free Software Foundation.
+ *  
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *  
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <stdio.h>
@@ -31,19 +42,21 @@
 		printf(x); \
 } while(0)
 
-struct ip_map {
-	char *ipv4_addr;
-	char *ipv6_addr;
-	struct ip_map *next;
-};
-
-struct ip_map *maps = NULL;
-int maps_count = 0, verbose = 0, conn_count = 0;
+int verbose = 0, conn_count = 0;
 int remote_port, verbose, hint = AF_INET6, hexdump = 0;
-char *remote_host, *ircpass = NULL, *map_filename = NULL;
+char *remote_host, *ircpass = NULL;
 char *ircsendpass = NULL, remote[128];
 char *pid_file = NULL;
 const char *source_host;
+
+typedef struct map {
+	char *ipv4;
+	char *ipv6;
+	struct map *next;
+} map_t;
+
+map_t *map_list = NULL;
+char *map_file = NULL;
 
 char *xmalloc(int size)
 {
@@ -132,11 +145,39 @@ void print_hexdump(const char *buf, int len)
 	}
 }
 
-void make_tunnel(int rsock)
+const char *map_find(const char *ipv4)
+{
+	map_t *m;
+
+	for (m = map_list; m; m = m->next) {
+		if (!strcmp(m->ipv4, ipv4))
+			return m->ipv6;
+	}
+
+	for (m = map_list; m; m = m->next) {
+		if (!strcmp(m->ipv4, "0.0.0.0") || !strcmp(m->ipv4, "default"))
+			return m->ipv6;
+	}
+
+	return source_host;
+}
+
+void make_tunnel(int rsock, const char *remote)
 {
 	char buf[4096], *outbuf = NULL, *inbuf = NULL;
 	int sock = -1, outlen = 0, inlen = 0;
 	struct sockaddr *sa = NULL;
+	const char *source;
+
+	if (map_list) {
+		if (!(source = map_find(remote))) {
+			debug("<%d> connection from unmapped address (%s), disconnecting\n", rsock, remote);
+			goto cleanup;
+		}
+
+		debug("<%d> mapped to %s\n", rsock, source);
+	} else
+		source = source_host;
 
 	if (ircpass) {
 		int i, ret;
@@ -182,19 +223,22 @@ void make_tunnel(int rsock)
 		goto cleanup;
 	}
 
-	sock = socket(sa->sa_family, SOCK_STREAM, 0);
+	if ((sock = socket(sa->sa_family, SOCK_STREAM, 0)) == -1) {
+		debug("<%d> unable to create socket (%s)\n", rsock, strerror(errno));
+		goto cleanup;
+	}
 
 	free(sa);
 	sa = NULL;
 
-	if (source_host) {
-		if (!(sa = resolve_host(source_host, hint))) {
-			debug("<%d> unable to resolve source host (%s)\n", rsock, source_host);
+	if (source) {
+		if (!(sa = resolve_host(source, hint))) {
+			debug("<%d> unable to resolve source host (%s)\n", rsock, source);
 			goto cleanup;
 		}
 
 		if (bind(sock, sa, (hint == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6))) {
-			debug("<%d> unable to bind to source host (%s)\n", rsock, source_host);
+			debug("<%d> unable to bind to source host (%s)\n", rsock, source);
 			goto cleanup;
 		}
 
@@ -317,13 +361,10 @@ cleanup:
 	if (sa)
 		free(sa);
 
-	if (sock != -1) {
-		shutdown(sock, 2);
-		close(sock);
-	}
-	
-	shutdown(rsock, 2);
 	close(rsock);
+
+	if (sock != -1)
+		close(sock);
 }
 
 void usage(const char *arg0)
@@ -331,8 +372,8 @@ void usage(const char *arg0)
 	fprintf(stderr,
 			
 "usage: %s [-146dvh] [-s sourcehost] [-l localhost] [-i pass]\n"
-"           [-I pass] [-m mapfile] [-L limit] [-A filename]\n"
-"           [-p pidfile] localport remotehost [remoteport]\n"
+"           [-I pass] [-L limit] [-A filename] [-p pidfile]\n"
+"           [-m mapfile] localport remotehost [remoteport]\n"
 "\n"	   
 "  -1  allow only one connection and quit\n"
 "  -4  preffer IPv4 endpoints\n"
@@ -344,9 +385,9 @@ void usage(const char *arg0)
 "  -I  send specified password to the irc server\n"
 "  -l  bind to specified address\n"
 "  -L  limit simultanous connections\n"
-"  -m  map specified IPv4 addresses to different IPv6 addresses (see manpage)\n"
 "  -p  write down pid to specified file\n"
 "  -s  connect using specified address\n"
+"  -m  read specified IPv4-to-IPv6 map file\n"
 "  -v  be verbose\n"
 "\n", arg0);
 }
@@ -361,110 +402,106 @@ void clear_argv(char *argv)
 	return;
 }
 
-
-void free_map()
+void map_destroy(void)
 {
-    struct ip_map *a, *n;
-    a = maps;
+	map_t *m;
+	
+	debug("map_destroy()\n");
+	
+	for (m = map_list; m; ) {
+		map_t *n;
+		
+		free(m->ipv4);
+		free(m->ipv6);
+		n = m;
+		m = m->next;
+		free(n);
+	}
 
-    debug("destroying ipv4->ipv6 map data structure...\n");
-
-    while (a != NULL)
-    {
-	free(a->ipv4_addr);
-	free(a->ipv6_addr);
-	n = a->next;
-	free(a);
-	a = n;
-    }
-
-    maps = NULL;
-    maps_count = 0;
+	map_list = NULL;
 }
 
-void read_map(const char *filename)
+void map_read(void)
 {
-	FILE *map_file;
-	char ipv4[128], ipv6[128];
-	struct ip_map *a, *n;
+	char buf[256];
+	FILE *f;
 
-	if (!filename)
+	if (!map_file)
 		return;
 
-	debug("reading map file %s...\n", filename);
+	debug("reading map from %s\n", map_file);
 
-	if (!(map_file = fopen(filename, "r"))) {
-		perror("Unable to read map file");
-		exit(1);
+	if (!(f = fopen(map_file, "r"))) {
+		debug("unable to read map file, ignoring\n");
+		return;
 	}
 	
-	maps_count = 0;
-	while (!feof(map_file) && fscanf(map_file, "%127s %127s", ipv4, ipv6)) {
-		debug("map %s->%s\n", ipv4, ipv6);
-		
-		n = (struct ip_map*) xmalloc(sizeof(struct ip_map));
-		n->ipv4_addr = strdup(ipv4);
-		n->ipv6_addr = strdup(ipv6);
-		n->next = NULL;
-		
-		if (!(a = maps)) {
-			maps = n;
+	while (fgets(buf, sizeof(buf), f)) {
+		char *p, *ipv4, *ipv6;
+		map_t *m;
+
+		for (p = buf; *p == ' ' || *p == '\t'; p++);
+
+		if (!*p)
 			continue;
-		}
+
+		ipv4 = p;
+
+		for (; *p && *p != ' ' && *p != '\t'; p++);
+
+		if (!*p)
+			continue;
+
+		*p = 0;
+		p++;
+
+		for (; *p == ' ' || *p == '\t'; p++);
+
+		if (!*p)
+			continue;
+
+		ipv6 = p;
+
+		for (; *p && *p != ' ' && *p != '\t' && *p != '\r' && *p != '\n'; p++);
+
+		*p = 0;
+
+		debug("[%s] mapped to [%s]\n", ipv4, ipv6);
 		
-		while (1) {
-			if (!a->next)
-				break;
-			
-			a = a->next;
-		}
-		
-		a->next = n;
-		maps_count++;
+		m = (map_t*) xmalloc(sizeof(map_t));
+		m->ipv4 = xstrdup(ipv4);
+		m->ipv6 = xstrdup(ipv6);
+		m->next = map_list;
+		map_list = m;
 	}
 	
-	debug("read %i items\n", maps_count);
-	fclose(map_file);
+	fclose(f);
 }
 
-const char *find_ip6(const char *ip4)
+void sighup()
 {
-	struct ip_map *tmp;
-	
-	for (tmp = maps; tmp; tmp = tmp->next)
-		if (!strcmp(ip4, tmp->ipv4_addr))
-			return tmp->ipv6_addr;
-	
-	/* and again - try to find the default if explicit search failed */
-	for (tmp = maps; tmp; tmp = tmp->next)
-		if (!strcmp("0.0.0.0", tmp->ipv4_addr))
-			return tmp->ipv6_addr;
+	map_destroy();
+	map_read();
 
-	return source_host;
+	signal(SIGHUP, sighup);
 }
 
-void sig_reload_map()
+void sigchld()
 {
-	free_map();
-        read_map(map_filename);
-
-	signal(SIGHUP, sig_reload_map);
-}
-
-void child_hand()
-{
-	while (wait4(0, NULL, WNOHANG, NULL) > 0) {
-		debug("child dying\n");
+	while (waitpid(-1, NULL, WNOHANG) > 0) {
+		debug("child process exited\n");
 		conn_count--;
 	}
 
-	signal(SIGCHLD, child_hand);
+	signal(SIGCHLD, sigchld);
 }
 
-void term_hand()
+void sigterm()
 {
 	if (pid_file)
 		unlink(pid_file);
+
+	exit(0);
 }
 
 int main(int argc, char **argv)
@@ -519,7 +556,7 @@ int main(int argc, char **argv)
 				username = xstrdup(optarg);
 				break;
 			case 'm':
-				map_filename = xstrdup(optarg);
+				map_file = xstrdup(optarg);
 				break;
 			case 'L':
 				conn_limit = atoi(optarg);
@@ -551,8 +588,8 @@ int main(int argc, char **argv)
 		exit(1);
 	}
   
-	if (map_filename)
-		read_map(map_filename);
+	if (map_file)
+		map_read();
   
 	local_port = atoi(argv[optind++]);
 	remote_host = argv[optind++];
@@ -579,7 +616,11 @@ int main(int argc, char **argv)
  
 	debug("local: %s,%d; ", (bind_host) ? bind_host : "default", local_port);
 	debug("remote: %s,%d; ", remote_host, remote_port);
-	debug((map_filename) ? "source: mapped\n" : "source: %s\n", source_host ? source_host : "default");
+
+	if (map_file)
+		debug("source: mapped\n");
+	else
+		debug("source: %s\n", (source_host) ? source_host : "default");
 
 	if (!listen6) {
 		lsock = socket(PF_INET, SOCK_STREAM, 0);
@@ -627,7 +668,7 @@ int main(int argc, char **argv)
 	if (detach) {
 		int i, ret;
 
-		signal(SIGHUP, sig_reload_map);
+		signal(SIGHUP, sighup);
 		
 		for (i = 0; i < 3; i++)
 			close(i);
@@ -660,10 +701,10 @@ int main(int argc, char **argv)
 	}
 
 	setsid();
-	signal(SIGCHLD, child_hand);
-	signal(SIGTERM, term_hand);
-	signal(SIGINT, term_hand);
-	signal(SIGHUP, sig_reload_map);
+	signal(SIGCHLD, sigchld);
+	signal(SIGTERM, sigterm);
+	signal(SIGINT, sigterm);
+	signal(SIGHUP, sighup);
     
 	for (;;) {  
 		int ret;
@@ -716,18 +757,8 @@ int main(int argc, char **argv)
 		if (!ret) {
 			signal(SIGHUP, SIG_IGN);
 			close(lsock);
-			if (maps_count) {
-				source_host = find_ip6(remote);
-				if (!source_host) {
-					debug("<%d> connection attempt from unauthorized IP address: %s\n", csock, remote);
-					shutdown(csock, 2);
-					close(csock);
-					exit(0);
-				}
-				debug(" mapped to host %s", source_host);
-			}
 			debug("\n");
-			make_tunnel(csock);
+			make_tunnel(csock, remote);
 			debug("<%d> connection closed\n", csock);
 			exit(0);
 		} 

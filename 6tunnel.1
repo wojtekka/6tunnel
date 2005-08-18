@@ -1,8 +1,8 @@
 .\"
 .\"  6tunnel v0.11
-.\"  (C) Copyright 2000-2004 by Wojtek Kaniewski <wojtekka@irc.pl>
+.\"  (C) Copyright 2000-2005 by Wojtek Kaniewski <wojtekka@toxygen.net>
 .\"
-.TH 6TUNNEL 1 "Apr 9, 2004"
+.TH 6TUNNEL 1 "Aug 18, 2005"
 .SH NAME
 6tunnel \- tunnelling for application that don't speak IPv6
 .SH SYNOPSIS
@@ -25,12 +25,11 @@
 .BI \-L
 .IR limit
 ] [
-.BI \-m
-.IR map\_file
-]
-] [
 .BI \-p
 .IR pid\_file
+] [
+.BI \-m
+.IR map\_file
 ]
 .IR local\_port
 .IR remote\_host
@@ -124,30 +123,32 @@ used).
 .BI \-L "\ " limit
 Limit simultaneous connections.
 .TP
-.BI \-m "\ " map_file
-Bind to different IPv6 addresses, depending on client's IPv4 address.
-Example file format:
-.IP
-.nf
-.ta +3i
-127.0.0.1 3ffe:8010:7::3
-192.168.16.2 3ffe:8010:7::5
-.fi
-.IP
-With this option specified connections will be allowed only from
-listed hosts. To allow any host to connect you have to add mapping 
-for 0.0.0.0 address.
-.TP
 .BI \-p "\ " pid_file
 Write down pid to specified file.
 .TP
 .BI \-s "\ " source_host
 Connect to the remote host using specified source address.
 .TP
+.BI \-m "\ " map_file
+Binds to specified IPv6 addresses on basis of source IPv4 address. The file
+contains one mapping per line with IPv4 source address and corresponding IPv6
+address. Only listed hosts are allowed to connect. If you want to allow any
+host, add mapping for
+.BI default
+or
+.BI 0.0.0.0
+address. Example:
+.IP
+.nf
+.ta +3i
+192.168.0.2 3ffe:8010:18::1000:2
+192.168.0.3 3ffe:8010:18::1000:3
+.fi
+.TP
 .B \-v
 Be verbose and don't detach.
 .SH SIGNALS
-Sending a SIGHUP signal forces a reload of the map file.
+Sending SIGHUP forces map file reload.
 .SH THANKS
 #ipv6 crew, Lam.
 .SH BUGS
@@ -155,8 +156,7 @@ Terrible man page. Hex dump doesn't include IRC proxy authentication.
 IRC proxy requires your client to send password first (don't worry ircii,
 EPIC, BitchX, mIRC and many more will work). No logging except debug output.
 .SH AUTHORS
-Wojtek Kaniewski (wojtekka@bydg.pdi.net),
-Tomek Lipski (lemur@irc.pl),
+Wojtek Kaniewski (wojtekka@toxygen.net),
 Dariusz Jackowski (ascent@linux.pl),
 Ramunas Lukosevicus (lukoramu@parok.lt)
 .SH "SEE ALSO"
