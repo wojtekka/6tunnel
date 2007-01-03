@@ -507,12 +507,12 @@ void sigterm()
 int main(int argc, char **argv)
 {
 	int force = 0, lsock, csock, one = 0, jeden = 1, local_port;
-	int detach = 1, listen6 = 0, sa_len, conn_limit = 0;
-	char optc, *username = NULL, *bind_host = NULL;
+	int detach = 1, listen6 = 0, sa_len, conn_limit = 0, optc;
+	char *username = NULL, *bind_host = NULL;
 	struct sockaddr *sa;
 	struct sockaddr_in laddr, caddr;
 	struct sockaddr_in6 laddr6;
-	int caddrlen = sizeof(caddr);
+	unsigned int caddrlen = sizeof(caddr);
 	struct passwd *pw = NULL;
 	
 	while ((optc = getopt(argc, argv, "1dv46fs:l:I:i:hu:m:L:A:p:")) != -1) {
