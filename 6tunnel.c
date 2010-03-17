@@ -560,7 +560,7 @@ int main(int argc, char **argv)
 			case 'l':
 				bind_host = xstrdup(optarg);
 				break;
-			case 'r':
+			case 'f':
 				force = 1;
 				break;
 			case 'i':
