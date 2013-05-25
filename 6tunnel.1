@@ -1,14 +1,14 @@
 .\"
 .\"  6tunnel v0.11
-.\"  (C) Copyright 2000-2005 by Wojtek Kaniewski <wojtekka@toxygen.net>
+.\"  (C) Copyright 2000-2005,2013 by Wojtek Kaniewski <wojtekka@toxygen.net>
 .\"
-.TH 6TUNNEL 1 "Aug 18, 2005"
+.TH 6TUNNEL 1 "May 25, 2013"
 .SH NAME
 6tunnel \- tunnelling for application that don't speak IPv6
 .SH SYNOPSIS
 .B 6tunnel
 [
-.B \-146dhfv
+.B \-146dhHfv
 ] [
 .BI \-u
 .IR username
@@ -103,6 +103,10 @@ Force tunneling even if remote host is not resolvable at the execution time.
 Print hex dump of every packet received or sent (hu-huh, Beavis, he said
 hex dump!)
 .TP
+.B \-H
+Don't ignore IPv4/IPv6 resolver hints. Original versions allowed only IPv4 to IPv6
+or IPv6 to IPv4 tunnels, so this option revert such behaviour. 
+.TP
 .BI \-u "\ " username
 Change UID and GID after bind().
 .TP
@@ -158,6 +162,7 @@ EPIC, BitchX, mIRC and many more will work). No logging except debug output.
 .SH AUTHORS
 Wojtek Kaniewski (wojtekka@toxygen.net),
 Dariusz Jackowski (ascent@linux.pl),
-Ramunas Lukosevicus (lukoramu@parok.lt)
+Ramunas Lukosevicus (lukoramu@parok.lt),
+Roland Stigge (stigge@antcom.de)
 .SH "SEE ALSO"
 .BR ssh (1)

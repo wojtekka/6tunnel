@@ -1,4 +1,4 @@
-0.11 (2005-08-18)
+0.11 (2013-05-25)
 
 Changes by Wojtek Kaniewski <wojtekka@toxygen.net>:
 - changed license to GPL version 2. There was no license information before
@@ -7,8 +7,9 @@ Changes by Wojtek Kaniewski <wojtekka@toxygen.net>:
   were dead and googling for them gave no useful information. The missing
   features have been rewritten from scratch. If any offending code is still
   here, please let me know. I've done my best, but I haven't used any
-  version control 5 years ago.
-- changed e-mail address.
+  version control 5 years ago,
+- changed e-mail address,
+- ignore IPv4/IPv6 address hints when option -H is present.
 
 Changes by Ramunas Lukosevicius <lukoramu@parok.lt>
 - fixed source mapping bug,

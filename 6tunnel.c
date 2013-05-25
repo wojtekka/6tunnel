@@ -1,10 +1,11 @@
 /*
  *  6tunnel v0.11
- *  (C) Copyright 2000-2005 by Wojtek Kaniewski <wojtekka@toxygen.net>
+ *  (C) Copyright 2000-2005,2013 by Wojtek Kaniewski <wojtekka@toxygen.net>
  *  
  *  Contributions by:
  *  - Dariusz Jackowski <ascent@linux.pl>
  *  - Ramunas Lukosevicius <lukoramu@parok.lt>
+ *  - Roland Stigge <stigge@antcom.de>
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License Version 2 as
@@ -46,6 +47,7 @@ int verbose = 0, conn_count = 0;
 int remote_port, verbose, hexdump = 0;
 int remote_hint = AF_INET6;
 int local_hint = AF_INET;
+int hint_optional = 0;
 char *remote_host, *ircpass = NULL;
 char *ircsendpass = NULL, remote[128];
 char *pid_file = NULL;
@@ -103,7 +105,7 @@ struct sockaddr *resolve_host(const char *name, int hint)
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = hint;
 
-	if (!getaddrinfo(name, NULL, &hints, &ai) && ai) {
+	if (getaddrinfo(name, NULL, &hints, &ai) == 0 && ai != NULL) {
 		char *tmp;
 
 		tmp = xmalloc(ai->ai_addrlen);
@@ -112,6 +114,18 @@ struct sockaddr *resolve_host(const char *name, int hint)
 		freeaddrinfo(ai);
 
 		return (struct sockaddr*) tmp;
+	}
+
+	/* If hints are optional, try again without them. */
+	if (hint_optional && hint != 0) {
+		struct sockaddr *res;
+
+		res = resolve_host(name, 0);
+
+		if (res != NULL) {
+			debug("warning: %s resolved ignoring hints\n", name);
+			return res;
+		}
 	}
 
 	return NULL;
@@ -202,8 +216,10 @@ void make_tunnel(int rsock, const char *remote)
 			debug("<%d> irc proxy auth failed - junk\n", rsock);
 
 			tmp = "ERROR :Closing link: Make your client send password first\r\n";
-			write(rsock, tmp, strlen(tmp));
-			
+			if (write(rsock, tmp, strlen(tmp)) != strlen(tmp)) {
+				// Do nothing. We're failing anyway.
+			}
+				
 			goto cleanup;
 		}
 
@@ -212,7 +228,9 @@ void make_tunnel(int rsock, const char *remote)
 
 			debug("<%d> irc proxy auth failed - password incorrect\n", rsock);
 			tmp = ":6tunnel 464 * :Password incorrect\r\nERROR :Closing link: Password incorrect\r\n";
-			write(rsock, tmp, strlen(tmp));
+			if (write(rsock, tmp, strlen(tmp)) != strlen(tmp)) {
+				// Do nothing. We're failing anyway.
+			}
 			
 			goto cleanup;
 		}
@@ -264,7 +282,8 @@ void make_tunnel(int rsock, const char *remote)
 
 	if (ircsendpass) {
 		snprintf(buf, 4096, "PASS %s\r\n", ircsendpass);
-		write(sock, buf, strlen(buf));
+		if (write(sock, buf, strlen(buf)) != strlen(buf))
+			goto cleanup;
 	}
 
 	for (;;) {
@@ -373,16 +392,17 @@ void usage(const char *arg0)
 {
 	fprintf(stderr,
 			
-"usage: %s [-146dvh] [-s sourcehost] [-l localhost] [-i pass]\n"
+"usage: %s [-146dvhH] [-s sourcehost] [-l localhost] [-i pass]\n"
 "           [-I pass] [-L limit] [-A filename] [-p pidfile]\n"
 "           [-m mapfile] localport remotehost [remoteport]\n"
 "\n"	   
 "  -1  allow only one connection and quit\n"
-"  -4  preffer IPv4 endpoints\n"
+"  -4  prefer IPv4 endpoints\n"
 "  -6  bind to IPv6 address\n"
 "  -d  don't detach\n"
 "  -f  force tunneling (even if remotehost isn't resolvable)\n"
 "  -h  print hex dump of packets\n"
+"  -H  make IPv4/IPv6 resolver hints optional\n"
 "  -i  act like irc proxy and ask for password\n"
 "  -I  send specified password to the irc server\n"
 "  -l  bind to specified address\n"
@@ -517,7 +537,7 @@ int main(int argc, char **argv)
 	unsigned int caddrlen = sizeof(caddr);
 	struct passwd *pw = NULL;
 	
-	while ((optc = getopt(argc, argv, "1dv46fs:l:I:i:hu:m:L:A:p:")) != -1) {
+	while ((optc = getopt(argc, argv, "1dv46fHs:l:I:i:hu:m:L:A:p:")) != -1) {
 		switch (optc) {
 			case '1':
 				one = 1;
@@ -565,6 +585,9 @@ int main(int argc, char **argv)
 				break;
 			case 'p':
 				pid_file = xstrdup(optarg);
+				break;
+			case 'H':
+				hint_optional = 1;
 				break;
 			default:
 				return 1;
