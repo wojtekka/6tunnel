@@ -43,7 +43,9 @@
 } while(0)
 
 int verbose = 0, conn_count = 0;
-int remote_port, verbose, hint = AF_INET6, hexdump = 0;
+int remote_port, verbose, hexdump = 0;
+int remote_hint = AF_INET6;
+int local_hint = AF_INET;
 char *remote_host, *ircpass = NULL;
 char *ircsendpass = NULL, remote[128];
 char *pid_file = NULL;
@@ -218,7 +220,7 @@ void make_tunnel(int rsock, const char *remote)
 		debug("<%d> irc proxy auth succeded\n", rsock);
 	}
   
-	if (!(sa = resolve_host(remote_host, hint))) {
+	if (!(sa = resolve_host(remote_host, remote_hint))) {
 		debug("<%d> unable to resolve %s\n", rsock, remote_host);
 		goto cleanup;
 	}
@@ -232,12 +234,12 @@ void make_tunnel(int rsock, const char *remote)
 	sa = NULL;
 
 	if (source) {
-		if (!(sa = resolve_host(source, hint))) {
+		if (!(sa = resolve_host(source, local_hint))) {
 			debug("<%d> unable to resolve source host (%s)\n", rsock, source);
 			goto cleanup;
 		}
 
-		if (bind(sock, sa, (hint == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6))) {
+		if (bind(sock, sa, (local_hint == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6))) {
 			debug("<%d> unable to bind to source host (%s)\n", rsock, source);
 			goto cleanup;
 		}
@@ -246,7 +248,7 @@ void make_tunnel(int rsock, const char *remote)
 		sa = NULL;
 	}
 
-	sa = resolve_host(remote_host, hint);
+	sa = resolve_host(remote_host, remote_hint);
 
 	((struct sockaddr_in*) sa)->sin_port = htons(remote_port);
 
@@ -507,7 +509,7 @@ void sigterm()
 int main(int argc, char **argv)
 {
 	int force = 0, lsock, csock, one = 0, jeden = 1, local_port;
-	int detach = 1, listen6 = 0, sa_len, conn_limit = 0, optc;
+	int detach = 1, sa_len, conn_limit = 0, optc;
 	char *username = NULL, *bind_host = NULL;
 	struct sockaddr *sa;
 	struct sockaddr_in laddr, caddr;
@@ -527,10 +529,10 @@ int main(int argc, char **argv)
 				verbose = 1;
 				break;
 			case '4':
-				hint = AF_INET; 
 				break;
 			case '6':
-				listen6 = 1;
+				remote_hint = AF_INET;
+				local_hint = AF_INET6;
 				break;
 			case 's':
 				source_host = xstrdup(optarg);
@@ -597,7 +599,7 @@ int main(int argc, char **argv)
 
 	debug("resolving %s\n", remote_host);
 
-	if (!(sa = resolve_host(remote_host, hint)) && !force) {
+	if (!(sa = resolve_host(remote_host, remote_hint)) && !force) {
 		fprintf(stderr, "%s: unable to resolve host %s\n", argv[0], remote_host);
 		exit(1);
 	}
@@ -608,7 +610,7 @@ int main(int argc, char **argv)
 	if (bind_host) {
 		debug("resolving %s\n", bind_host);
 
-		if (!(sa = resolve_host(bind_host, (listen6) ? AF_INET6 : AF_INET))) {
+		if (!(sa = resolve_host(bind_host, local_hint))) {
 			fprintf(stderr, "%s: unable to resolve host %s\n", argv[0], remote_host);
 			exit(1);
 		}
@@ -622,7 +624,7 @@ int main(int argc, char **argv)
 	else
 		debug("source: %s\n", (source_host) ? source_host : "default");
 
-	if (!listen6) {
+	if (local_hint == AF_INET) {
 		lsock = socket(PF_INET, SOCK_STREAM, 0);
 
 		memset(&laddr, 0, (sa_len = sizeof(laddr)));
