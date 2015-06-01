@@ -1,3 +1,3 @@
 #!/bin/sh
-autoconf
+autoreconf --install
 test x$NOCONFIGURE = x && ./configure
