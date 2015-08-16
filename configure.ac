@@ -1,5 +1,5 @@
-AC_INIT(6tunnel.c)
-
+AC_INIT([6tunnel],[1.0],[])
+AM_INIT_AUTOMAKE([1.14 foreign silent-rules subdir-objects tar-pax])
 AC_PROG_CC
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
@@ -28,5 +28,9 @@ AC_TRY_COMPILE([#include <netinet/in.h>], [int x = AF_INET6;], [
 AC_SUBST(VERSION)
 VERSION=`grep '6tunnel v' 6tunnel.c | sed 's/.*v//'`
 
-AC_OUTPUT(Makefile)
+AC_CONFIG_FILES([
+        Makefile
+])
+
+AC_OUTPUT
 
