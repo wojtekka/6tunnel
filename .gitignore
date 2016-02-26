@@ -1,0 +1,15 @@
+.deps/
+6tunnel
+*.o
+*.tar.gz
+Makefile
+Makefile.in
+aclocal.m4
+autom4te.cache/
+compile
+config.log
+config.status
+configure
+depcomp
+missing
+
