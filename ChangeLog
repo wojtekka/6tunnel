@@ -19,6 +19,9 @@ Changes by Roland Stigge <stigge@antcom.de>
 - fix an error in the "hints" handling of the host resolver which confused
   local/source and remote hint (AF_INET/AF_INET6).
 
+Changes by Olaf Rempel <razzor@kopf-tisch.de>
+- correct option -f.
+
 0.10 (2003-06-12)
 
 Changes by Wojtek Kaniewski <wojtekka@irc.pl>:
