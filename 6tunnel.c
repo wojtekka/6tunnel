@@ -235,7 +235,7 @@ void make_tunnel(int rsock, const char *remote)
 			goto cleanup;
 		}
 		
-		debug("<%d> irc proxy auth succeded\n", rsock);
+		debug("<%d> irc proxy auth succeeded\n", rsock);
 	}
   
 	if (!(sa = resolve_host(remote_host, remote_hint))) {
@@ -406,7 +406,7 @@ void usage(const char *arg0)
 "  -i  act like irc proxy and ask for password\n"
 "  -I  send specified password to the irc server\n"
 "  -l  bind to specified address\n"
-"  -L  limit simultanous connections\n"
+"  -L  limit simultaneous connections\n"
 "  -p  write down pid to specified file\n"
 "  -s  connect using specified address\n"
 "  -m  read specified IPv4-to-IPv6 map file\n"
