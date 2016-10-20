@@ -18,7 +18,7 @@ AC_HAVE_HEADERS(sys/socket.h netinet/in.h arpa/inet.h netdb.h, , AC_MSG_ERROR([S
 AC_CHECK_FUNCS(getaddrinfo, , AC_MSG_ERROR([Your system doesn't support IPv6.]))
 
 AC_MSG_CHECKING([for AF_INET6])
-AC_TRY_COMPILE([#include <netinet/in.h>], [int x = AF_INET6;], [
+AC_TRY_COMPILE([#include <sys/socket.h>], [int x = AF_INET6;], [
 	AC_MSG_RESULT(yes)
 ], [
 	AC_MSG_RESULT(no)
