@@ -1,14 +1,14 @@
 .\"
-.\"  6tunnel v0.11
-.\"  (C) Copyright 2000-2005,2013 by Wojtek Kaniewski <wojtekka@toxygen.net>
+.\"  6tunnel v0.12
+.\"  (C) Copyright 2000-2005,2013,2016 by Wojtek Kaniewski <wojtekka@toxygen.net>
 .\"
-.TH 6TUNNEL 1 "May 25, 2013"
+.TH 6TUNNEL 1 "Oct 22, 2016"
 .SH NAME
 6tunnel \- tunnelling for application that don't speak IPv6
 .SH SYNOPSIS
 .B 6tunnel
 [
-.B \-146dhHfv
+.B \-146dhfv
 ] [
 .BI \-u
 .IR username
@@ -100,12 +100,7 @@ Don't detach.
 Force tunneling even if remote host is not resolvable at the execution time.
 .TP
 .B \-h
-Print hex dump of every packet received or sent (hu-huh, Beavis, he said
-hex dump!)
-.TP
-.B \-H
-Don't ignore IPv4/IPv6 resolver hints. Original versions allowed only IPv4 to IPv6
-or IPv6 to IPv4 tunnels, so this option revert such behaviour. 
+Print hex dump of every packet received or sent.
 .TP
 .BI \-u "\ " username
 Change UID and GID after bind().
