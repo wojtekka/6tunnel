@@ -648,7 +648,7 @@ int main(int argc, char **argv)
 				pid_file = optarg;
 				break;
 			case 'H':
-				fprintf(stderr, "Warning: Option -H is deprecated\n");
+				fprintf(stderr, "%s: -H is deprecated, please use proper combination of -4 and -6.\n", argv[0]);
 				break;
 			default:
 				return 1;

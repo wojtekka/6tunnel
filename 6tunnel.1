@@ -146,6 +146,15 @@ address. Example:
 .TP
 .B \-v
 Be verbose and don't detach.
+.SH NOTES
+Option
+.B \-H
+to disable all resolver hints has been removed since proper combination
+of 
+.B \-4
+and
+.B \-6
+will yield in any combination of IPv4 and IPv6 sources and destinations.
 .SH SIGNALS
 Sending SIGHUP forces map file reload.
 .SH THANKS
