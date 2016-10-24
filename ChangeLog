@@ -1,3 +1,14 @@
+0.12 (2016-10-24)
+
+Changes by Wojtek Kaniewski <wojtekka@toxygen.net>:
+- make -4 and -6 work the way they were intended,
+- remove -H option, but leave enough information for the users to get the
+  same result,
+- warn when both local and remote address are of the same type.
+
+Changes by Jari Aalto <jari.aalto@cante.net>:
+- spelling fixes.
+
 0.11 (2016-02-26)
 
 Changes by Wojtek Kaniewski <wojtekka@toxygen.net>:

@@ -648,7 +648,7 @@ int main(int argc, char **argv)
 				pid_file = optarg;
 				break;
 			case 'H':
-				fprintf(stderr, "%s: -H is deprecated, please use proper combination of -4 and -6.\n", argv[0]);
+				fprintf(stderr, "%s: warning: -H is deprecated, please use proper combination of -4 and -6.\n", argv[0]);
 				break;
 			default:
 				return 1;
@@ -704,6 +704,12 @@ int main(int argc, char **argv)
 	} else {
 		source_hint = remote_hint[0];
 	}
+
+	if (source_hint == AF_INET && local_hint == AF_INET)
+		fprintf(stderr, "%s: warning: both local and remote addresses are IPv4\n", argv[0]);
+
+	if (source_hint == AF_INET6 && local_hint == AF_INET6)
+		fprintf(stderr, "%s: warning: both local and remote addresses are IPv6\n", argv[0]);
 
 	tmp = xntop(ai->ai_addr);
 	debug("resolved to %s\n", tmp);
