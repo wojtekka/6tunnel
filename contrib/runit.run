@@ -1,0 +1,11 @@
+#!/bin/sh
+#
+# example run script for service supervision with runit
+# http://smarden.org/runit/
+#
+# redirect ipv4 port 80 to internal ipv6 port 80 & drop privileges
+#
+exec 2>&1
+exec 6tunnel -u nobody -d -p /run/80.pid 80 a:dead:beef:1 80
+
+
