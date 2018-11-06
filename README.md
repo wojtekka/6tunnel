@@ -1,4 +1,5 @@
-# 6tunnel
+6tunnel
+=======
 
 6tunnel allows you to use services provided by IPv6 hosts with
 IPv4-only applications and vice-versa. It can bind to any of your IPv4
@@ -38,4 +39,12 @@ and IPv6 endpoints. If remote host doesn't have any IPv6 addresses,
 6tunnel will use the IPv4 one. In other cases, use -4 parameter which
 makes IPv4 address the preffered one. For IPv6-to-any tunnels use -6
 which makes 6tunnel bind to IPv6 address.
+
+License
+-------
+
+Since version 0.11 released under the terms of
+[GPL version 2](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) --
+see [release notes](https://github.com/wojtekka/6tunnel/releases/tag/0.11)
+for details.
 
