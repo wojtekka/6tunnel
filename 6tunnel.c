@@ -706,17 +706,20 @@ int main(int argc, char **argv)
 		source_hint = remote_hint[0];
 	}
 
-	if (source_hint == AF_INET && local_hint == AF_INET)
-		fprintf(stderr, "%s: warning: both local and remote addresses are IPv4\n", argv[0]);
+	if (ai != NULL) {
 
-	if (source_hint == AF_INET6 && local_hint == AF_INET6)
-		fprintf(stderr, "%s: warning: both local and remote addresses are IPv6\n", argv[0]);
+		if (source_hint == AF_INET && local_hint == AF_INET)
+			fprintf(stderr, "%s: warning: both local and remote addresses are IPv4\n", argv[0]);
 
-	tmp = xntop(ai->ai_addr);
-	debug("resolved to %s\n", tmp);
-	free(tmp);
+		if (source_hint == AF_INET6 && local_hint == AF_INET6)
+			fprintf(stderr, "%s: warning: both local and remote addresses are IPv6\n", argv[0]);
 
-	freeaddrinfo(ai);
+		tmp = xntop(ai->ai_addr);
+		debug("resolved to %s\n", tmp);
+		free(tmp);
+
+		freeaddrinfo(ai);
+	}
 
 	if (source_host != NULL) {
 		debug("resolving %s\n", source_host);
