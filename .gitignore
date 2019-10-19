@@ -12,4 +12,5 @@ config.status
 configure
 depcomp
 missing
+test-driver
 

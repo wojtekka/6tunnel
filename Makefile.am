@@ -5,3 +5,6 @@ bin_PROGRAMS = 6tunnel
 
 dist_man_MANS = 6tunnel.1
 
+TESTS = ./test.py
+
+EXTRA_DIST = test.py
