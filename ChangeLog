@@ -1,3 +1,14 @@
+0.13 (2019-10-19)
+
+Changes by Stuart Cardall:
+- Updated help message.
+
+Changes by Paul Warren:
+- Avoid segfault in "-f" mode.
+ 
+Changes by Wojtek Kaniewski:
+- Support automake's "make check" target.
+
 0.12 (2016-10-24)
 
 Changes by Wojtek Kaniewski <wojtekka@toxygen.net>:

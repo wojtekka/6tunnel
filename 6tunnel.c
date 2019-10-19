@@ -1,6 +1,6 @@
 /*
- *  6tunnel v0.12
- *  (C) Copyright 2000-2005,2013,2016 by Wojtek Kaniewski <wojtekka@toxygen.net>
+ *  6tunnel v0.13
+ *  (C) Copyright 2000-2005,2013,2016,2019 by Wojtek Kaniewski <wojtekka@toxygen.net>
  *
  *  Contributions by:
  *  - Dariusz Jackowski <ascent@linux.pl>

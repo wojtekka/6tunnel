@@ -1,4 +1,4 @@
-AC_INIT([6tunnel],[0.12],[])
+AC_INIT([6tunnel],[0.13],[])
 AM_INIT_AUTOMAKE([1.14 foreign silent-rules subdir-objects tar-pax])
 AC_PROG_CC
 AC_PROG_INSTALL
