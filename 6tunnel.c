@@ -556,7 +556,7 @@ void map_read(void)
 	fclose(f);
 }
 
-void sighup()
+void sighup(int unused)
 {
 	source_map_destroy();
 	map_read();
@@ -564,7 +564,7 @@ void sighup()
 	signal(SIGHUP, sighup);
 }
 
-void sigchld()
+void sigchld(int unused)
 {
 	while (waitpid(-1, NULL, WNOHANG) > 0) {
 		debug("child process exited\n");
@@ -574,7 +574,7 @@ void sigchld()
 	signal(SIGCHLD, sigchld);
 }
 
-void sigterm()
+void sigterm(int unused)
 {
 	if (pid_file != NULL)
 		unlink(pid_file);
