@@ -209,7 +209,6 @@ void make_tunnel(int rsock, const char *client_addr)
 {
 	char buf[4096], *outbuf = NULL, *inbuf = NULL;
 	int sock = -1, outlen = 0, inlen = 0;
-	struct sockaddr *sa = NULL;
 	const char *source;
 	struct addrinfo *connect_ai = NULL;
 	struct addrinfo *bind_ai = NULL;
@@ -586,14 +585,11 @@ void sigterm()
 int main(int argc, char **argv)
 {
 	int force = 0, listen_fd, single_connection = 0, jeden = 1, local_port;
-	int detach = 1, sa_len, conn_limit = 0, optc;
+	int detach = 1, conn_limit = 0, optc;
 	const char *username = NULL;
 	char *local_host = NULL;
 	struct addrinfo *ai;
 	struct addrinfo *ai_ptr;
-	struct sockaddr *sa;
-	struct sockaddr_in laddr;
-	struct sockaddr_in6 laddr6;
 	struct passwd *pw = NULL;
 	char *tmp;
 	int source_hint;
