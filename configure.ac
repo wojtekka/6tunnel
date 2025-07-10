@@ -25,9 +25,6 @@ AC_TRY_COMPILE([#include <sys/socket.h>], [int x = AF_INET6;], [
 	AC_MSG_ERROR([Your system doesn't support IPv6.])
 ])
 
-AC_SUBST(VERSION)
-VERSION=`grep '6tunnel v' 6tunnel.c | sed 's/.*v//'`
-
 AC_CONFIG_FILES([
         Makefile
 ])
