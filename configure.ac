@@ -15,6 +15,7 @@ AC_CHECK_LIB([inet6], [main], LIBS="$LIBS -linet6")
 
 AC_CHECK_HEADERS([sys/socket.h netinet/in.h arpa/inet.h netdb.h], [], [AC_MSG_ERROR(Socket related headers missing.)])
 AC_CHECK_FUNCS([getaddrinfo], , AC_MSG_ERROR([Your system doesn't support IPv6.]))
+AC_CHECK_TYPES([struct sockaddr_in6], , AC_MSG_ERROR([Your system doesn't support IPv6.]), [[#include <netinet/in.h>]])
 
 AC_MSG_CHECKING([for AF_INET6])
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <sys/socket.h>]], [[int x = AF_INET6;]])],[
