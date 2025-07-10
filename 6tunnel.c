@@ -468,6 +468,7 @@ void usage(const char *arg0)
 "  -s  connect using specified address\n"
 "  -m  read specified IPv4-to-IPv6 map file\n"
 "  -v  be verbose\n"
+"  -V  print version\n"
 "\n", arg0);
 }
 
@@ -594,7 +595,7 @@ int main(int argc, char **argv)
 	char *tmp;
 	int source_hint;
 
-	while ((optc = getopt(argc, argv, "1dv46fHs:l:I:i:hu:m:L:A:p:")) != -1) {
+	while ((optc = getopt(argc, argv, "1dv46fHs:l:I:i:hu:m:L:A:p:V")) != -1) {
 		switch (optc) {
 			case '1':
 				single_connection = 1;
@@ -647,6 +648,9 @@ int main(int argc, char **argv)
 			case 'H':
 				fprintf(stderr, "%s: warning: -H is deprecated, please use proper combination of -4 and -6.\n", argv[0]);
 				break;
+			case 'V':
+				printf("%s\n", PACKAGE_STRING);
+				exit(0);
 			default:
 				return 1;
 		}
@@ -844,8 +848,8 @@ int main(int argc, char **argv)
 		int client_fd;
 		char *client_addr;
 		int client_port;
-		struct sockaddr sa;
-		unsigned int sa_len = sizeof(sa);
+		struct sockaddr_in6 sin6;    // assume it's no smaller than sockaddr_in
+		unsigned int sin6_len = sizeof(sin6);
 
 		FD_ZERO(&rds);
 		FD_SET(listen_fd, &rds);
@@ -858,19 +862,18 @@ int main(int argc, char **argv)
 			break;
 		}
 
-		client_fd = accept(listen_fd, &sa, &sa_len);
+		client_fd = accept(listen_fd, (struct sockaddr*) &sin6, &sin6_len);
 
 		if (client_fd == -1) {
 			perror("accept");
 			break;
 		}
 
-		client_addr = xntop(&sa);
+		client_addr = xntop((struct sockaddr*) &sin6);
 
-		client_port = (sa.sa_family == AF_INET) ? ((struct sockaddr_in*) &sa)->sin_port :
-			((struct sockaddr_in6*) &sa)->sin6_port;
+		client_port = ntohs((sin6.sin6_family == AF_INET6) ? sin6.sin6_port : ((struct sockaddr_in*) &sin6)->sin_port);
 
-		debug("<%d> connection from %s,%d", client_fd, client_addr, ntohs(client_port));
+		debug("<%d> connection from %s,%d", client_fd, client_addr, client_port);
 
 		if (conn_limit && (conn_count >= conn_limit)) {
 			debug(" -- rejected due to limit.\n");
