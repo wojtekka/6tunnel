@@ -1,3 +1,14 @@
+0.14 (2020-09-21)
+
+Changes by Wojtek Kaniewski:
+- Modify test script to use Python 3.
+- Remove unused variables.
+- Stop using sockaddr for generic storage.
+- Add -V parameter to print version.
+
+Changed by pgajdos:
+- Fix compilation with GCC 15.
+
 0.13 (2019-10-19)
 
 Changes by Stuart Cardall:
@@ -5,7 +16,7 @@ Changes by Stuart Cardall:
 
 Changes by Paul Warren:
 - Avoid segfault in "-f" mode.
- 
+
 Changes by Wojtek Kaniewski:
 - Support automake's "make check" target.
 
