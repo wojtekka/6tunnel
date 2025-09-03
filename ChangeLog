@@ -1,4 +1,4 @@
-0.14 (2020-09-21)
+0.14 (2025-09-03)
 
 Changes by Wojtek Kaniewski:
 - Modify test script to use Python 3.
@@ -6,7 +6,7 @@ Changes by Wojtek Kaniewski:
 - Stop using sockaddr for generic storage.
 - Add -V parameter to print version.
 
-Changed by pgajdos:
+Changes by pgajdos:
 - Fix compilation with GCC 15.
 
 0.13 (2019-10-19)
