@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+mkdir -p build
+
+rsync -a --exclude='build' --exclude='.git' --exclude='compile-sh' ./ build/
+
+cd build
+
+./autogen.sh
+make
+
+cp 6tunnel ../

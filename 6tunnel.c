@@ -23,12 +23,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <netdb.h>
 #include <string.h>
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <fcntl.h>
@@ -43,12 +45,16 @@
 		printf(x); \
 } while(0)
 
-int verbose = 0, conn_count = 0;
-int remote_port, verbose, hexdump = 0;
+int verbose = 0, conn_count = 0, conn_limit = 0;
+int remote_port, hexdump = 0;
 int remote_hint[2] = { AF_INET6, AF_INET };
 int local_hint = AF_INET;
-char *remote_host, *irc_pass = NULL;
-char *irc_send_pass = NULL;
+
+bool handle_udp = false;
+time_t udp_client_timeout = 300;
+
+char *remote_host = NULL;
+char *irc_send_pass, *irc_pass = NULL;
 char *pid_file = NULL;
 const char *source_host;
 
@@ -145,7 +151,9 @@ struct addrinfo *resolve_host(const char *name, int port, int hint)
 
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = hint;
-	hints.ai_socktype = SOCK_STREAM;
+	
+	hints.ai_socktype = handle_udp ? SOCK_DGRAM : SOCK_STREAM;
+
 	hints.ai_flags = (name == NULL && port != 0) ? AI_PASSIVE : 0;
 
 	rc = getaddrinfo(name, (port != 0) ? port_str : NULL, &hints, &result);
@@ -203,6 +211,315 @@ const char *source_map_find(const char *ipv4)
 	}
 
 	return source_host;
+}
+
+int same_address(
+	const struct sockaddr_storage *left,
+	const struct sockaddr_storage *right
+) {
+	if (left->ss_family != right->ss_family)
+		return 0;
+
+	if (left->ss_family == AF_INET) {
+		const struct sockaddr_in *left4;
+		const struct sockaddr_in *right4;
+
+		left4 = (const struct sockaddr_in *)left;
+		right4 = (const struct sockaddr_in *)right;
+
+		return left4->sin_port == right4->sin_port &&
+		left4->sin_addr.s_addr == right4->sin_addr.s_addr;
+	}
+
+	if (left->ss_family == AF_INET6) {
+		const struct sockaddr_in6 *left6;
+		const struct sockaddr_in6 *right6;
+
+		left6 = (const struct sockaddr_in6 *)left;
+		right6 = (const struct sockaddr_in6 *)right;
+
+		return left6->sin6_port == right6->sin6_port &&
+			left6->sin6_scope_id == right6->sin6_scope_id &&
+			memcmp(&left6->sin6_addr,
+					&right6->sin6_addr,
+					sizeof(left6->sin6_addr)) == 0;
+	}
+
+	return 0;
+}
+
+void make_udp_tunnel(int listen_fd){
+
+	// linked list for managing active clients
+	struct active_udp_client {
+		struct sockaddr_storage client_sockaddr;
+		socklen_t client_sockaddr_len;
+		int outbound_socket_fd;
+		time_t last_active_time;
+		struct active_udp_client *next;
+	};
+
+	struct active_udp_client *clients = NULL;
+	struct active_udp_client *client;
+	struct active_udp_client *previous;
+	struct addrinfo *remote_ai;
+
+	char buffer[4096];
+	ssize_t buffer_length = 0;
+
+	struct sockaddr_storage temp_client_sockaddr;
+	socklen_t temp_client_sockaddr_len = sizeof(temp_client_sockaddr);
+
+	remote_ai = resolve_host(remote_host, remote_port, remote_hint[0]);
+
+	if (remote_ai == NULL)
+	remote_ai = resolve_host(remote_host, remote_port, remote_hint[1]);
+
+	if (remote_ai == NULL) {
+		debug("unable to resolve UDP remote host\n");
+		return;
+	}
+
+	fd_set read_fds;
+	
+	for(;;){
+		// create fd_set
+		FD_ZERO(&read_fds);
+		FD_SET(listen_fd, &read_fds);
+		int max_fd = listen_fd;
+
+		client = clients;
+
+		while(client != NULL){
+			FD_SET(client->outbound_socket_fd, &read_fds);
+			if (client->outbound_socket_fd > max_fd){
+				 max_fd = client->outbound_socket_fd;
+			}
+			client = client->next;
+		}
+
+		struct timeval timeout = { .tv_sec = 10, .tv_usec = 0 }; 
+
+		int ready = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
+
+		if (ready < 0) {
+			if (errno == EINTR)
+				continue;
+
+			perror("select");
+			goto cleanup;
+		}
+
+		// receive from listen_fd
+		if(FD_ISSET(listen_fd, &read_fds)){
+			temp_client_sockaddr_len = sizeof(temp_client_sockaddr);
+			buffer_length = recvfrom(listen_fd, buffer, sizeof(buffer), 0, 
+			(struct sockaddr*)&temp_client_sockaddr, &temp_client_sockaddr_len);
+
+			if (buffer_length < 0) {
+				if (errno != EINTR)
+					perror("recvfrom");
+			} else {
+				client = clients;
+
+				while(client != NULL){
+					if (same_address(&client->client_sockaddr, &temp_client_sockaddr)){
+						break;
+					}
+					client = client->next;
+				}
+
+				if(!client){
+					if (conn_limit && conn_count >= conn_limit) {
+						debug("UDP client rejected due to connection limit\n");
+						continue;
+					}
+
+					client = malloc(sizeof(struct active_udp_client));
+
+					if (client == NULL) {
+						fprintf(stderr, "Fatal: failed to allocate %zu bytes for clients (udp).\n", 
+							sizeof(struct active_udp_client));
+						goto cleanup;
+					}
+
+					client->client_sockaddr = temp_client_sockaddr;
+					client->client_sockaddr_len = temp_client_sockaddr_len;
+					client->last_active_time = time(NULL);
+
+					struct addrinfo *remote_ptr;
+
+					for (remote_ptr = remote_ai; remote_ptr != NULL; remote_ptr = remote_ptr->ai_next) {
+						client->outbound_socket_fd = socket(remote_ptr->ai_family, SOCK_DGRAM, 0);
+
+						if (client->outbound_socket_fd < 0)
+							continue;
+
+						if (client->outbound_socket_fd >= FD_SETSIZE) {
+							debug("Warning: FD_SETSIZE limit reached, dropping new UDP client\n");
+							close(client->outbound_socket_fd);
+							client->outbound_socket_fd = -1;
+							continue;
+						}
+
+						if (source_host != NULL) {
+							struct addrinfo *source_ai;
+
+							source_ai = resolve_host(source_host, 0, remote_ptr->ai_family);
+
+							if (source_ai == NULL) {
+								debug("unable to resolve UDP source host %s\n", source_host);
+								close(client->outbound_socket_fd);
+								client->outbound_socket_fd = -1;
+								continue;
+							}
+
+							if (bind(client->outbound_socket_fd,
+									source_ai->ai_addr,
+									source_ai->ai_addrlen) < 0) {
+								perror("bind");
+								freeaddrinfo(source_ai);
+								close(client->outbound_socket_fd);
+								client->outbound_socket_fd = -1;
+								continue;
+							}
+
+							freeaddrinfo(source_ai);
+						}
+
+						if (connect(client->outbound_socket_fd,
+									remote_ptr->ai_addr,
+									remote_ptr->ai_addrlen) == 0) {
+							break;
+						}
+
+						close(client->outbound_socket_fd);
+						client->outbound_socket_fd = -1;
+					}
+
+					if (remote_ptr == NULL) {
+						free(client);
+						continue;
+					}
+
+					char *client_ip = xntop((struct sockaddr *)&client->client_sockaddr);
+
+					debug("New UDP connection from %s, assigned outbound fd %d\n", 
+						client_ip ? client_ip : "unknown", 
+						client->outbound_socket_fd);
+
+					if(client_ip){
+						free(client_ip);
+					}
+
+					conn_count++;
+					client->next = clients;
+					clients = client;
+				}
+
+				if (hexdump) {
+					printf("sendto %s,%d (UDP request)\n", remote_host, remote_port);
+					print_hexdump(buffer, buffer_length);
+				}
+
+				ssize_t sent = send(client->outbound_socket_fd,
+									buffer,
+									buffer_length,
+									0);
+
+				if (sent < 0) {
+					perror("send");
+				} else {
+					client->last_active_time = time(NULL);
+				}
+			}
+		}
+
+		client = clients;
+
+		while(client != NULL){ // check data from outbound fds
+			if (FD_ISSET(client->outbound_socket_fd, &read_fds)){
+				buffer_length = recv(client->outbound_socket_fd, buffer, sizeof(buffer), 0);
+
+				if (buffer_length < 0) {
+					if (errno != EINTR)
+						perror("recv");
+				} else {
+					if (sendto(listen_fd,
+							buffer,
+							buffer_length,
+							0,
+							(struct sockaddr *)&client->client_sockaddr,
+							client->client_sockaddr_len) < 0) {
+						perror("sendto");
+					} else {
+						client->last_active_time = time(NULL);
+					}
+					
+					char *client_ip = xntop((struct sockaddr *)&client->client_sockaddr);
+					
+					debug("Forwarded %zd bytes from server back to UDP client %s\n", buffer_length, client_ip ? client_ip : "unknown");
+					
+					if (hexdump) {
+						printf("recvfrom %s,%d (UDP response)\n", remote_host, remote_port);
+						print_hexdump(buffer, buffer_length);
+					}
+
+					if(client_ip){
+						free(client_ip);
+					}		
+				}	
+			}
+			client = client->next;
+		} // while end
+
+		client = clients;
+		previous = NULL;
+
+		while(client != NULL){ // remove timed out outbound fds
+			if(time(NULL) - client->last_active_time >= udp_client_timeout){
+				char *client_ip = xntop((struct sockaddr *)&client->client_sockaddr);
+
+				debug("UDP client %s (fd %d) timed out, disconnecting\n", 
+					client_ip ? client_ip : "unknown", 
+					client->outbound_socket_fd);
+				
+				if (client_ip) {
+					free(client_ip); 
+				}
+				
+				close(client->outbound_socket_fd);
+
+				struct active_udp_client * to_delete = client;
+
+				if(previous == NULL){
+					clients = client->next;
+					client = clients;
+				}else{
+					previous->next = client->next;
+					client = client->next;
+				}
+
+				if (conn_count > 0)
+					conn_count--;
+
+				free(to_delete);
+			}else{	
+				previous = client;
+				client = client->next;
+			}
+		} // while end
+	} // for end
+
+cleanup:
+	while (clients != NULL) {
+		client = clients;
+		clients = clients->next;
+		close(client->outbound_socket_fd);
+		free(client);
+	}
+
+	freeaddrinfo(remote_ai);
 }
 
 void make_tunnel(int rsock, const char *client_addr)
@@ -452,6 +769,7 @@ void usage(const char *arg0)
 "usage: %s [-146dvh] [-s sourcehost] [-l localhost] [-i pass]\n"
 "           [-I pass] [-L limit] [-A filename] [-p pidfile]\n"
 "           [-m mapfile] localport remotehost [remoteport]\n"
+"			[-U UDP]"
 "\n"
 "  -1  allow only single connection and quit\n"
 "  -4  connect to IPv4 endpoints (default: connect to IPv6)\n"
@@ -460,6 +778,7 @@ void usage(const char *arg0)
 "  -f  force tunneling (even if remotehost isn't resolvable)\n"
 "  -h  print hex dump of packets\n"
 "  -u  change UID and GID after bind()\n"
+"  -U  Enable UDP mode for tunneling\n"
 "  -i  act like irc proxy and ask for password\n"
 "  -I  send specified password to the irc server\n"
 "  -l  bind to specified address\n"
@@ -586,7 +905,7 @@ void sigterm(int unused)
 int main(int argc, char **argv)
 {
 	int force = 0, listen_fd, single_connection = 0, jeden = 1, local_port;
-	int detach = 1, conn_limit = 0, optc;
+	int detach = 1, optc;
 	const char *username = NULL;
 	char *local_host = NULL;
 	struct addrinfo *ai;
@@ -595,7 +914,7 @@ int main(int argc, char **argv)
 	char *tmp;
 	int source_hint;
 
-	while ((optc = getopt(argc, argv, "1dv46fHs:l:I:i:hu:m:L:A:p:V")) != -1) {
+	while ((optc = getopt(argc, argv, "1dv46fHs:l:I:i:hu:m:L:A:p:VU")) != -1) {
 		switch (optc) {
 			case '1':
 				single_connection = 1;
@@ -651,6 +970,10 @@ int main(int argc, char **argv)
 			case 'V':
 				printf("%s\n", PACKAGE_STRING);
 				exit(0);
+			case 'U':
+				fprintf(stderr, "warning: Using UDP Tunnel experimentally. Expect bugs.\n");
+				handle_udp = true;
+				break;
 			default:
 				return 1;
 		}
@@ -785,9 +1108,13 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (listen(listen_fd, 100) == -1) {
-		perror("listen");
-		exit(1);
+	// if not udp then start with tcp
+
+	if (!handle_udp) {
+		if (listen(listen_fd, 100) == -1) {
+			perror("listen");
+			exit(1);
+		}
 	}
 
 	freeaddrinfo(ai);
@@ -841,6 +1168,12 @@ int main(int argc, char **argv)
 	signal(SIGTERM, sigterm);
 	signal(SIGINT, sigterm);
 	signal(SIGHUP, sighup);
+
+	if (handle_udp) {
+		make_udp_tunnel(listen_fd);
+		close(listen_fd);
+		exit(0);
+	}
 
 	for (;;) {
 		int ret;

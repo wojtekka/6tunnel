@@ -1,4 +1,5 @@
 .deps/
+build/
 6tunnel
 *.o
 *.tar.gz
